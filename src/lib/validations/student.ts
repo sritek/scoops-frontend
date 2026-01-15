@@ -19,6 +19,14 @@ export const studentCategories = ["gen", "sc", "st", "obc", "minority"] as const
 export type StudentCategory = (typeof studentCategories)[number];
 
 /**
+ * Photo URL schema (Base64 data URL)
+ */
+const photoUrlSchema = z
+  .string()
+  .nullable()
+  .optional();
+
+/**
  * Parent input schema
  * Matches backend parentInputSchema
  */
@@ -37,6 +45,7 @@ export const parentInputSchema = z.object({
     .max(15, "Phone is too long")
     .regex(/^[0-9+\-\s]+$/, "Invalid phone number"),
   relation: z.enum(parentRelations),
+  photoUrl: photoUrlSchema,
 });
 
 /**
@@ -56,6 +65,7 @@ export const studentFormSchema = z.object({
   dob: z.string().optional(),
   category: z.enum(studentCategories).optional(),
   isCwsn: z.boolean().optional(),
+  photoUrl: photoUrlSchema,
   admissionYear: z
     .number()
     .int("Year must be a whole number")
@@ -85,6 +95,7 @@ export const defaultStudentFormValues: StudentFormData = {
   dob: undefined,
   category: undefined,
   isCwsn: false,
+  photoUrl: null,
   admissionYear: new Date().getFullYear(),
   batchId: "",
   parents: [],
@@ -98,4 +109,5 @@ export const defaultParentValues: ParentInput = {
   lastName: "",
   phone: "",
   relation: "father",
+  photoUrl: null,
 };

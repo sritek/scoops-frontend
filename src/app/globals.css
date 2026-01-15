@@ -255,3 +255,48 @@ body {
   background-color: var(--primary-100);
   color: var(--text-primary);
 }
+
+/* =============================================================================
+   8. DARK MODE
+   Activated when .dark class is on <html> element
+   Uses same CSS variables with dark-appropriate values
+   ============================================================================= */
+
+.dark {
+  /* ---------------------------------------------------------------------------
+     8.1 Background Colors (Dark)
+     --------------------------------------------------------------------------- */
+  --bg-app: #0f172a; /* slate-900 - Main app background */
+  --bg-surface: #1e293b; /* slate-800 - Cards, panels, modals */
+
+  /* ---------------------------------------------------------------------------
+     8.2 Text Colors (Dark)
+     --------------------------------------------------------------------------- */
+  --text-primary: #f1f5f9; /* slate-100 - Main text */
+  --text-muted: #94a3b8; /* slate-400 - Secondary text */
+
+  /* ---------------------------------------------------------------------------
+     8.3 Border Colors (Dark)
+     --------------------------------------------------------------------------- */
+  --border-subtle: #334155; /* slate-700 - Dividers, borders */
+
+  /* ---------------------------------------------------------------------------
+     8.4 Primary Brand Color (Dark)
+     --------------------------------------------------------------------------- */
+  --primary-100: #1e3a5f; /* Darker primary background */
+  --primary-600: #3b82f6; /* blue-500 - Slightly brighter for dark mode */
+  --primary-700: #2563eb; /* blue-600 - Hover state */
+
+  /* ---------------------------------------------------------------------------
+     8.5 Status Colors (Dark) - Slightly adjusted for better contrast
+     --------------------------------------------------------------------------- */
+  --success: #22c55e; /* green-500 - Brighter for dark backgrounds */
+  --warning: #f59e0b; /* amber-500 - Brighter for dark backgrounds */
+  --error: #ef4444; /* red-500 - Brighter for dark backgrounds */
+  --info: #0ea5e9; /* sky-500 - Brighter for dark backgrounds */
+
+  /* ---------------------------------------------------------------------------
+     8.6 Focus Ring (Dark)
+     --------------------------------------------------------------------------- */
+  --ring: #3b82f6; /* blue-500 - Matches dark primary */
+}

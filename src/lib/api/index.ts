@@ -12,6 +12,23 @@ export {
   useRecordPayment,
   feesKeys,
 } from "./fees";
+export { useProfile, useUpdateProfile, profileKeys } from "./profile";
+export {
+  useOrganization,
+  useUpdateOrganization,
+  useMessageTemplates,
+  useCreateTemplate,
+  useUpdateTemplate,
+  useDeleteTemplate,
+  settingsKeys,
+} from "./settings";
+export type {
+  Organization,
+  UpdateOrganizationInput,
+  MessageTemplate,
+  UpdateTemplateInput,
+  CreateTemplateInput,
+} from "./settings";
 export {
   createQueryClient,
   isForbiddenError,

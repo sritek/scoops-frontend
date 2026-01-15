@@ -10,6 +10,8 @@ export interface StudentListParams extends PaginationParams {
   search?: string;
   batchId?: string;
   status?: "active" | "inactive";
+  gender?: "male" | "female" | "other";
+  category?: "gen" | "sc" | "st" | "obc" | "minority";
 }
 
 /**
@@ -34,6 +36,8 @@ async function fetchStudents(
   if (params.search) searchParams.set("search", params.search);
   if (params.batchId) searchParams.set("batchId", params.batchId);
   if (params.status) searchParams.set("status", params.status);
+  if (params.gender) searchParams.set("gender", params.gender);
+  if (params.category) searchParams.set("category", params.category);
 
   const queryString = searchParams.toString();
   const endpoint = queryString ? `/students?${queryString}` : "/students";

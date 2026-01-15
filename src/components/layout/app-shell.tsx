@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useCallback, type ReactNode } from "react";
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { LogOut, User, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { usePermissions } from "@/lib/hooks";
 import { Sidebar } from "./sidebar";
 import { MobileHeader } from "./mobile-header";
 import {
@@ -13,6 +15,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Avatar,
+  ThemeToggle,
 } from "@/components/ui";
 
 interface AppShellProps {
@@ -34,10 +38,13 @@ interface AppShellProps {
  */
 export function AppShell({ children }: AppShellProps) {
   const { user, signOut } = useAuth();
+  const { can } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+
+  const canManageSettings = can("SETTINGS_MANAGE");
 
   return (
     <div className="min-h-screen bg-bg-app">
@@ -84,16 +91,12 @@ export function AppShell({ children }: AppShellProps) {
                     {user?.branchName || user?.role || "—"}
                   </p>
                 </div>
-                <div
-                  className={cn(
-                    "flex h-9 w-9 items-center justify-center",
-                    "rounded-full bg-primary-100",
-                    "text-sm font-medium text-primary-600"
-                  )}
-                  aria-hidden="true"
-                >
-                  {user?.name?.charAt(0).toUpperCase() || "U"}
-                </div>
+                <Avatar
+                  src={user?.photoUrl}
+                  fallback={user?.name?.charAt(0)}
+                  alt={user?.name || "User"}
+                  size="md"
+                />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -105,6 +108,23 @@ export function AppShell({ children }: AppShellProps) {
                   </span>
                 </div>
               </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/profile">
+                  <User className="mr-2 h-4 w-4" aria-hidden="true" />
+                  My Profile
+                </Link>
+              </DropdownMenuItem>
+              {canManageSettings && (
+                <DropdownMenuItem asChild>
+                  <Link href="/settings">
+                    <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <ThemeToggle />
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={signOut}

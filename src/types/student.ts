@@ -14,6 +14,7 @@ export interface StudentParent {
   lastName: string;
   fullName: string;
   phone: string;
+  photoUrl: string | null;
   relation: ParentRelation;
 }
 
@@ -28,6 +29,7 @@ export interface Student {
   dob: string | null;
   category: StudentCategory | null;
   isCwsn: boolean | null;
+  photoUrl: string | null;
   admissionYear: number;
   status: StudentStatus;
   batchId: string | null;
@@ -48,6 +50,7 @@ export interface CreateStudentInput {
   dob?: string;
   category?: StudentCategory;
   isCwsn?: boolean;
+  photoUrl?: string | null;
   admissionYear: number;
   batchId?: string;
   parents?: {
@@ -55,6 +58,7 @@ export interface CreateStudentInput {
     lastName: string;
     phone: string;
     relation: ParentRelation;
+    photoUrl?: string | null;
   }[];
 }
 
@@ -68,6 +72,7 @@ export interface UpdateStudentInput {
   dob?: string;
   category?: StudentCategory;
   isCwsn?: boolean;
+  photoUrl?: string | null;
   admissionYear?: number;
   batchId?: string | null;
   status?: StudentStatus;
@@ -76,5 +81,6 @@ export interface UpdateStudentInput {
     lastName: string;
     phone: string;
     relation: ParentRelation;
+    photoUrl?: string | null;
   }[];
 }

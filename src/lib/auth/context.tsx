@@ -34,6 +34,8 @@ interface AuthContextValue extends AuthState {
   ) => Promise<{ success: boolean; error?: string }>;
   /** Get the current auth token */
   getToken: () => string | null;
+  /** Refresh user data from server (call after profile update) */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -184,6 +186,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             employeeId: string;
             firstName: string;
             lastName: string;
+            photoUrl: string;
             role: string;
             permissions: string[];
             branchId: string;
@@ -207,6 +210,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           name: `${response.user.firstName} ${response.user.lastName}`.trim(),
           firstName: response.user.firstName,
           lastName: response.user.lastName,
+          photoUrl: response.user.photoUrl ?? null,
           role: response.user.role as User["role"],
           permissions: response.user.permissions as User["permissions"],
           branchId: response.user.branchId,
@@ -292,6 +296,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return getStoredToken();
   }, []);
 
+  // Refresh user data from server
+  const refreshUser = useCallback(async (): Promise<void> => {
+    try {
+      const user = await fetchUserProfile();
+      if (user) {
+        // Update state
+        setState((prev) => ({
+          ...prev,
+          user,
+        }));
+        // Update localStorage
+        const token = getStoredToken();
+        if (token) {
+          storeAuthData(token, user);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to refresh user:", error);
+    }
+  }, [fetchUserProfile]);
+
   // Listen for unauthorized events from API client
   useEffect(() => {
     const handleUnauthorized = () => {
@@ -311,6 +336,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signOut: handleSignOut,
     changePassword,
     getToken,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -328,13 +354,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
  * - signOut: Function to sign out
  * - changePassword: Function to change password
  * - getToken: Function to get current auth token
+ * - refreshUser: Function to refresh user data from server
  *
  * For permission checks, use usePermissions hook instead.
  *
  * Must be used within AuthProvider
  *
  * @example
- * const { user, isAuthenticated, login, signOut } = useAuth();
+ * const { user, isAuthenticated, login, signOut, refreshUser } = useAuth();
  */
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);

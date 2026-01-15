@@ -24,10 +24,8 @@ interface ProtectedLayoutProps {
  * Permissions are available via usePermissions() hook.
  */
 export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
-  const { isAuthenticated, isLoading, error, user } = useAuth();
+  const { isAuthenticated, isLoading, error } = useAuth();
   const router = useRouter();
-
-  console.log("user in layout", user);
 
   // Redirect to login if not authenticated and not loading
   useEffect(() => {

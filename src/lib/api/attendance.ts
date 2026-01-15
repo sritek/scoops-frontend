@@ -1,7 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
-import type { AttendanceResponse, MarkAttendanceInput } from "@/types/attendance";
-import type { PaginationParams } from "@/types";
+import type {
+  AttendanceResponse,
+  MarkAttendanceInput,
+  AttendanceSummary,
+  AttendanceHistoryItem,
+  AttendanceHistoryParams,
+} from "@/types/attendance";
+import type { PaginationParams, PaginatedResponse } from "@/types";
 
 /**
  * Query keys for attendance
@@ -10,6 +16,9 @@ export const attendanceKeys = {
   all: ["attendance"] as const,
   byBatchDate: (batchId: string, date: string, params?: PaginationParams) =>
     [...attendanceKeys.all, batchId, date, params] as const,
+  summary: () => [...attendanceKeys.all, "summary"] as const,
+  history: (params?: AttendanceHistoryParams) =>
+    [...attendanceKeys.all, "history", params] as const,
 };
 
 /**
@@ -26,10 +35,10 @@ async function fetchAttendance(
   if (params.page) searchParams.set("page", String(params.page));
   if (params.limit) searchParams.set("limit", String(params.limit));
 
-  const response = await apiClient.get<AttendanceResponse>(
+  const response = await apiClient.get<{ data: AttendanceResponse }>(
     `/attendance?${searchParams.toString()}`
   );
-  return response;
+  return response.data;
 }
 
 /**
@@ -43,6 +52,38 @@ async function markAttendance(
     input
   );
   return response;
+}
+
+/**
+ * Fetch today's attendance summary
+ */
+async function fetchAttendanceSummary(): Promise<AttendanceSummary> {
+  const response = await apiClient.get<{ data: AttendanceSummary }>(
+    "/dashboard/attendance"
+  );
+
+  return response.data;
+}
+
+/**
+ * Fetch attendance history with filters
+ */
+async function fetchAttendanceHistory(
+  params: AttendanceHistoryParams = {}
+): Promise<PaginatedResponse<AttendanceHistoryItem>> {
+  const searchParams = new URLSearchParams();
+  if (params.batchId) searchParams.set("batchId", params.batchId);
+  if (params.startDate) searchParams.set("startDate", params.startDate);
+  if (params.endDate) searchParams.set("endDate", params.endDate);
+  if (params.page) searchParams.set("page", String(params.page));
+  if (params.limit) searchParams.set("limit", String(params.limit));
+
+  const queryString = searchParams.toString();
+  const endpoint = queryString
+    ? `/attendance/history?${queryString}`
+    : "/attendance/history";
+
+  return apiClient.get<PaginatedResponse<AttendanceHistoryItem>>(endpoint);
 }
 
 /**
@@ -87,5 +128,33 @@ export function useMarkAttendance() {
       // Also invalidate all attendance queries
       queryClient.invalidateQueries({ queryKey: attendanceKeys.all });
     },
+  });
+}
+
+/**
+ * Hook to fetch today's attendance summary
+ *
+ * @example
+ * const { data: summary, isLoading } = useAttendanceSummary();
+ */
+export function useAttendanceSummary() {
+  return useQuery<AttendanceSummary>({
+    queryKey: attendanceKeys.summary(),
+    queryFn: fetchAttendanceSummary,
+    staleTime: 30 * 1000, // 30 seconds
+  });
+}
+
+/**
+ * Hook to fetch attendance history with pagination and filters
+ *
+ * @example
+ * const { data: history, isLoading } = useAttendanceHistory({ batchId, startDate, endDate, page: 1 });
+ */
+export function useAttendanceHistory(params: AttendanceHistoryParams = {}) {
+  return useQuery({
+    queryKey: attendanceKeys.history(params),
+    queryFn: () => fetchAttendanceHistory(params),
+    staleTime: 60 * 1000, // 1 minute
   });
 }

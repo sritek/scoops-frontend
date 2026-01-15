@@ -31,6 +31,8 @@ import {
   SelectContent,
   SelectItem,
   Skeleton,
+  PhotoUpload,
+  Label,
 } from "@/components/ui";
 
 /**
@@ -79,6 +81,7 @@ export default function EditStudentPage({
         dob: student.dob ? student.dob.split("T")[0] : undefined,
         category: student.category || undefined,
         isCwsn: student.isCwsn || false,
+        photoUrl: student.photoUrl || null,
         admissionYear: student.admissionYear,
         batchId: student.batchId || undefined,
         parents: student.parents?.map((p) => ({
@@ -86,6 +89,7 @@ export default function EditStudentPage({
           lastName: p.lastName,
           phone: p.phone,
           relation: p.relation,
+          photoUrl: p.photoUrl || null,
         })) || [],
       });
     }
@@ -171,6 +175,23 @@ export default function EditStudentPage({
             <CardTitle className="text-lg">Student Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Photo */}
+            <div className="flex flex-col items-center sm:items-start gap-2 pb-4 border-b border-border-subtle">
+              <Label>Student Photo</Label>
+              <Controller
+                name="photoUrl"
+                control={control}
+                render={({ field }) => (
+                  <PhotoUpload
+                    value={field.value}
+                    onChange={field.onChange}
+                    size="md"
+                    label="Student photo"
+                  />
+                )}
+              />
+            </div>
+
             {/* Name row */}
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -429,6 +450,22 @@ function ParentFieldGroup({
             Remove
           </Button>
         )}
+      </div>
+
+      {/* Photo */}
+      <div className="flex justify-center pb-2">
+        <Controller
+          name={`parents.${index}.photoUrl`}
+          control={control}
+          render={({ field }) => (
+            <PhotoUpload
+              value={field.value}
+              onChange={field.onChange}
+              size="sm"
+              label={`Parent ${index + 1} photo`}
+            />
+          )}
+        />
       </div>
 
       {/* Name row */}

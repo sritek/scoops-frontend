@@ -29,6 +29,8 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
+  PhotoUpload,
+  Label,
 } from "@/components/ui";
 
 /**
@@ -42,7 +44,11 @@ import {
  */
 export default function AddStudentPage() {
   const router = useRouter();
-  const { mutate: createStudent, isPending, error: submitError } = useCreateStudent();
+  const {
+    mutate: createStudent,
+    isPending,
+    error: submitError,
+  } = useCreateStudent();
 
   const {
     register,
@@ -109,6 +115,23 @@ export default function AddStudentPage() {
             <CardTitle className="text-lg">Student Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Photo */}
+            <div className="flex flex-col items-center sm:items-start gap-2 pb-4 border-b border-border-subtle">
+              <Label>Student Photo</Label>
+              <Controller
+                name="photoUrl"
+                control={control}
+                render={({ field }) => (
+                  <PhotoUpload
+                    value={field.value}
+                    onChange={field.onChange}
+                    size="md"
+                    label="Student photo"
+                  />
+                )}
+              />
+            </div>
+
             {/* Name row */}
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -149,10 +172,7 @@ export default function AddStudentPage() {
                   name="gender"
                   control={control}
                   render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                    >
+                    <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger id="gender">
                         <SelectValue placeholder="Select gender" />
                       </SelectTrigger>
@@ -173,11 +193,7 @@ export default function AddStudentPage() {
                 label="Date of Birth"
                 error={errors.dob?.message}
               >
-                <Input
-                  id="dob"
-                  type="date"
-                  {...register("dob")}
-                />
+                <Input id="dob" type="date" {...register("dob")} />
               </FormField>
             </div>
 
@@ -192,10 +208,7 @@ export default function AddStudentPage() {
                   name="category"
                   control={control}
                   render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                    >
+                    <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger id="category">
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
@@ -266,7 +279,8 @@ export default function AddStudentPage() {
           <CardContent className="space-y-4">
             {fields.length === 0 ? (
               <p className="text-sm text-text-muted text-center py-4">
-                No parents added yet. Click &quot;Add Parent&quot; to add guardian details.
+                No parents added yet. Click &quot;Add Parent&quot; to add
+                guardian details.
               </p>
             ) : (
               fields.map((field, index) => (
@@ -340,6 +354,22 @@ function ParentFieldGroup({
         )}
       </div>
 
+      {/* Photo */}
+      <div className="flex justify-center pb-2">
+        <Controller
+          name={`parents.${index}.photoUrl`}
+          control={control}
+          render={({ field }) => (
+            <PhotoUpload
+              value={field.value}
+              onChange={field.onChange}
+              size="sm"
+              label={`Parent ${index + 1} photo`}
+            />
+          )}
+        />
+      </div>
+
       {/* Name row */}
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
@@ -395,10 +425,7 @@ function ParentFieldGroup({
             name={`parents.${index}.relation`}
             control={control}
             render={({ field }) => (
-              <Select
-                value={field.value}
-                onValueChange={field.onChange}
-              >
+              <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger id={`parents.${index}.relation`}>
                   <SelectValue placeholder="Select relation" />
                 </SelectTrigger>

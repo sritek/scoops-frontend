@@ -6,7 +6,7 @@ import { Users, Plus, Search, Phone, AlertCircle, Filter } from "lucide-react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { useStudents } from "@/lib/api/students";
 import { useBatches } from "@/lib/api/batches";
-import { usePermissions } from "@/lib/hooks";
+import { usePermissions, useDebounce } from "@/lib/hooks";
 import {
   Button,
   Input,
@@ -25,36 +25,6 @@ import type { Student, StudentParent } from "@/types/student";
 import { PAGINATION_DEFAULTS } from "@/types";
 
 /**
- * Debounce hook for search input
- */
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useState(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  });
-
-  // Update immediately if value changes
-  useMemo(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
-/**
  * Students List Page
  *
  * Displays students in a searchable, paginated table using DataTable component.
@@ -67,6 +37,9 @@ export default function StudentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBatchId, setSelectedBatchId] = useState<string>("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  const [selectedGender, setSelectedGender] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const { can } = usePermissions();
 
   // Debounce search for server-side filtering
@@ -76,14 +49,17 @@ export default function StudentsPage() {
   const { data: batchesData } = useBatches({ limit: 100 });
   const batches = batchesData?.data ?? [];
 
-  console.log("batches", batches);
-
   // Fetch students with pagination and filters
   const { data, isLoading, error } = useStudents({
     page: currentPage,
     limit: PAGINATION_DEFAULTS.LIMIT,
     search: debouncedSearch || undefined,
     batchId: selectedBatchId || undefined,
+    status: (selectedStatus as "active" | "inactive") || undefined,
+    gender: (selectedGender as "male" | "female" | "other") || undefined,
+    category:
+      (selectedCategory as "gen" | "sc" | "st" | "obc" | "minority") ||
+      undefined,
   });
 
   const students = data?.data ?? [];
@@ -101,6 +77,37 @@ export default function StudentsPage() {
     setSelectedBatchId(value === "all" ? "" : value);
     setCurrentPage(1);
   }, []);
+
+  const handleStatusChange = useCallback((value: string) => {
+    setSelectedStatus(value === "all" ? "" : value);
+    setCurrentPage(1);
+  }, []);
+
+  const handleGenderChange = useCallback((value: string) => {
+    setSelectedGender(value === "all" ? "" : value);
+    setCurrentPage(1);
+  }, []);
+
+  const handleCategoryChange = useCallback((value: string) => {
+    setSelectedCategory(value === "all" ? "" : value);
+    setCurrentPage(1);
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery("");
+    setSelectedBatchId("");
+    setSelectedStatus("");
+    setSelectedGender("");
+    setSelectedCategory("");
+    setCurrentPage(1);
+  }, []);
+
+  const hasFilters =
+    searchQuery ||
+    selectedBatchId ||
+    selectedStatus ||
+    selectedGender ||
+    selectedCategory;
 
   // Column definitions for the DataTable
   const columns: ColumnDef<Student>[] = useMemo(
@@ -234,31 +241,43 @@ export default function StudentsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        {/* Search */}
-        <div className="relative flex-1 max-w-sm">
-          <Search
-            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
-            aria-hidden="true"
-          />
-          <Input
-            type="search"
-            placeholder="Search by name..."
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-9"
-            aria-label="Search students"
-          />
+      <div className="space-y-3">
+        {/* First Row: Search and Clear Filters */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {/* Search */}
+          <div className="relative flex-1 max-w-sm">
+            <Search
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+              aria-hidden="true"
+            />
+            <Input
+              type="search"
+              placeholder="Search by name..."
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-9"
+              aria-label="Search students"
+            />
+          </div>
+
+          {/* Clear Filters */}
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
         </div>
 
-        {/* Batch Filter */}
-        <div className="flex items-center gap-2">
+        {/* Second Row: Filter Dropdowns */}
+        <div className="flex flex-wrap items-center gap-2">
           <Filter className="h-4 w-4 text-text-muted" aria-hidden="true" />
+
+          {/* Batch Filter */}
           <Select
             value={selectedBatchId || "all"}
             onValueChange={handleBatchChange}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="All Batches" />
             </SelectTrigger>
             <SelectContent>
@@ -268,6 +287,55 @@ export default function StudentsPage() {
                   {batch.name}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+
+          {/* Status Filter */}
+          <Select
+            value={selectedStatus || "all"}
+            onValueChange={handleStatusChange}
+          >
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Gender Filter */}
+          <Select
+            value={selectedGender || "all"}
+            onValueChange={handleGenderChange}
+          >
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="All Genders" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Genders</SelectItem>
+              <SelectItem value="male">Male</SelectItem>
+              <SelectItem value="female">Female</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Category Filter */}
+          <Select
+            value={selectedCategory || "all"}
+            onValueChange={handleCategoryChange}
+          >
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              <SelectItem value="gen">General</SelectItem>
+              <SelectItem value="sc">SC</SelectItem>
+              <SelectItem value="st">ST</SelectItem>
+              <SelectItem value="obc">OBC</SelectItem>
+              <SelectItem value="minority">Minority</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -288,10 +356,7 @@ export default function StudentsPage() {
       {/* Students Table */}
       {!error && (
         <>
-          {!isLoading &&
-          students.length === 0 &&
-          !searchQuery &&
-          !selectedBatchId ? (
+          {!isLoading && students.length === 0 && !hasFilters ? (
             <Card>
               <EmptyState
                 icon={Users}
@@ -317,16 +382,10 @@ export default function StudentsPage() {
                 description={
                   searchQuery
                     ? `No students match "${searchQuery}"`
-                    : "No students in the selected batch"
+                    : "No students match the selected filters"
                 }
                 action={
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setSearchQuery("");
-                      setSelectedBatchId("");
-                    }}
-                  >
+                  <Button variant="secondary" onClick={clearFilters}>
                     Clear filters
                   </Button>
                 }

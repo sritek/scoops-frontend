@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   Building2,
-  Plus,
   Search,
   AlertCircle,
   Edit,
@@ -13,8 +12,8 @@ import {
   GraduationCap,
   Star,
 } from "lucide-react";
-import { useBranches, useCreateBranch, useUpdateBranch } from "@/lib/api/branches";
-import { usePermissions } from "@/lib/hooks";
+import { useBranches, useUpdateBranch } from "@/lib/api/branches";
+import { usePermissions, useDebounce } from "@/lib/hooks";
 import {
   Button,
   Card,
@@ -32,7 +31,7 @@ import {
   Label,
   Checkbox,
 } from "@/components/ui";
-import type { Branch, CreateBranchInput, UpdateBranchInput } from "@/types/branch";
+import type { Branch, UpdateBranchInput } from "@/types/branch";
 import { PAGINATION_DEFAULTS } from "@/types";
 
 /**
@@ -44,20 +43,13 @@ import { PAGINATION_DEFAULTS } from "@/types";
 export default function BranchesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
 
   const { can } = usePermissions();
   const canManageBranches = can("SETTINGS_MANAGE");
 
   // Debounced search
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  useMemo(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   const { data, isLoading, error } = useBranches({
     page: currentPage,
@@ -156,16 +148,9 @@ export default function BranchesPage() {
         <div>
           <h1 className="text-xl font-semibold text-text-primary">Branches</h1>
           <p className="text-sm text-text-muted">
-            Manage branches in your organization
+            View branches in your organization
           </p>
         </div>
-
-        {canManageBranches && (
-          <Button onClick={() => setShowCreateDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Add Branch
-          </Button>
-        )}
       </div>
 
       {/* Search */}
@@ -206,15 +191,7 @@ export default function BranchesPage() {
               <EmptyState
                 icon={Building2}
                 title="No branches yet"
-                description="Add your first branch to get started"
-                action={
-                  canManageBranches ? (
-                    <Button onClick={() => setShowCreateDialog(true)}>
-                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                      Add Branch
-                    </Button>
-                  ) : undefined
-                }
+                description="Branches are managed by the system administrator"
               />
             </Card>
           ) : !isLoading && branches.length === 0 ? (
@@ -250,167 +227,12 @@ export default function BranchesPage() {
         </>
       )}
 
-      {/* Create Branch Dialog */}
-      <CreateBranchDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-      />
-
       {/* Edit Branch Dialog */}
       <EditBranchDialog
         branch={editingBranch}
         onOpenChange={() => setEditingBranch(null)}
       />
     </div>
-  );
-}
-
-/**
- * Create Branch Dialog
- */
-function CreateBranchDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const [formData, setFormData] = useState<CreateBranchInput>({
-    name: "",
-    address: "",
-    city: "",
-    state: "",
-    pincode: "",
-    isDefault: false,
-  });
-
-  const { mutate: createBranch, isPending, error } = useCreateBranch();
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    createBranch(formData, {
-      onSuccess: () => {
-        onOpenChange(false);
-        setFormData({
-          name: "",
-          address: "",
-          city: "",
-          state: "",
-          pincode: "",
-          isDefault: false,
-        });
-      },
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add New Branch</DialogTitle>
-          <DialogDescription>
-            Create a new branch for your organization
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          {error && (
-            <div className="rounded-lg bg-red-50 p-3 text-sm text-error">
-              {error instanceof Error ? error.message : "Failed to create branch"}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="name">Branch Name</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-              placeholder="e.g., Main Campus"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="address">Address</Label>
-            <Input
-              id="address"
-              value={formData.address}
-              onChange={(e) =>
-                setFormData({ ...formData, address: e.target.value })
-              }
-              placeholder="Street address"
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="city">City</Label>
-              <Input
-                id="city"
-                value={formData.city}
-                onChange={(e) =>
-                  setFormData({ ...formData, city: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="state">State</Label>
-              <Input
-                id="state"
-                value={formData.state}
-                onChange={(e) =>
-                  setFormData({ ...formData, state: e.target.value })
-                }
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="pincode">Pincode</Label>
-            <Input
-              id="pincode"
-              value={formData.pincode}
-              onChange={(e) =>
-                setFormData({ ...formData, pincode: e.target.value })
-              }
-              maxLength={10}
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Checkbox
-              id="isDefault"
-              checked={formData.isDefault}
-              onCheckedChange={(checked) =>
-                setFormData({ ...formData, isDefault: checked === true })
-              }
-            />
-            <label
-              htmlFor="isDefault"
-              className="text-sm font-medium text-text-primary cursor-pointer"
-            >
-              Set as default branch
-            </label>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Creating..." : "Create Branch"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -436,7 +258,7 @@ function EditBranchDialog({
   const { mutate: updateBranch, isPending, error } = useUpdateBranch();
 
   // Update form when branch changes
-  useMemo(() => {
+  useEffect(() => {
     if (branch) {
       setFormData({
         name: branch.name,

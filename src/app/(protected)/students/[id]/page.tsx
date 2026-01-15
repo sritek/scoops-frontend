@@ -21,6 +21,7 @@ import {
   CardContent,
   Badge,
   Skeleton,
+  Avatar,
 } from "@/components/ui";
 
 /**
@@ -82,6 +83,12 @@ export default function StudentDetailPage({
               Back
             </Link>
           </Button>
+          <Avatar
+            src={student.photoUrl}
+            fallback={student.firstName?.charAt(0)}
+            alt={student.fullName}
+            size="xl"
+          />
           <div>
             <h1 className="text-xl font-semibold text-text-primary">
               {student.fullName}
@@ -175,11 +182,19 @@ export default function StudentDetailPage({
                     key={parent.id}
                     className="rounded-lg border border-border-subtle p-4"
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-medium">{parent.fullName}</p>
-                      <Badge variant="default" className="capitalize">
-                        {parent.relation}
-                      </Badge>
+                    <div className="flex items-center gap-3 mb-3">
+                      <Avatar
+                        src={parent.photoUrl}
+                        fallback={parent.firstName?.charAt(0)}
+                        alt={parent.fullName}
+                        size="md"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{parent.fullName}</p>
+                        <Badge variant="default" className="capitalize text-xs mt-0.5">
+                          {parent.relation}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-text-muted">
                       <Phone className="h-4 w-4" aria-hidden="true" />

@@ -6,11 +6,13 @@
 // User & Auth Types
 export interface User {
   id: string;
+  employeeId?: string;
   name: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
-  email?: string;
+  email?: string | null;
+  photoUrl?: string | null;
   role: UserRole;
   permissions: Permission[];
   branchId: string;
@@ -91,7 +93,7 @@ export interface PaginationParams {
  */
 export const PAGINATION_DEFAULTS = {
   PAGE: 1,
-  LIMIT: 20,
+  LIMIT: 10,
 } as const;
 
 // Entity Types - Stubs for Phase 1

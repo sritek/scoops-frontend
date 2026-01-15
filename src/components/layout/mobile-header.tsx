@@ -1,8 +1,10 @@
 "use client";
 
-import { Menu, LogOut } from "lucide-react";
+import Link from "next/link";
+import { Menu, LogOut, User, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { usePermissions } from "@/lib/hooks";
 import { appMeta } from "@/config/navigation";
 import {
   DropdownMenu,
@@ -11,6 +13,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Avatar,
+  ThemeToggle,
 } from "@/components/ui";
 
 interface MobileHeaderProps {
@@ -26,6 +30,8 @@ interface MobileHeaderProps {
  */
 export function MobileHeader({ onMenuClick }: MobileHeaderProps) {
   const { user, signOut } = useAuth();
+  const { can } = usePermissions();
+  const canManageSettings = can("SETTINGS_MANAGE");
 
   return (
     <header
@@ -62,14 +68,16 @@ export function MobileHeader({ onMenuClick }: MobileHeaderProps) {
           <button
             type="button"
             className={cn(
-              "flex h-8 w-8 items-center justify-center",
-              "rounded-full bg-primary-100",
-              "text-sm font-medium text-primary-600",
               "focus-visible:outline-2 focus-visible:outline-ring"
             )}
             aria-label="User menu"
           >
-            {user?.name?.charAt(0).toUpperCase() || "U"}
+            <Avatar
+              src={user?.photoUrl}
+              fallback={user?.name?.charAt(0)}
+              alt={user?.name || "User"}
+              size="sm"
+            />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
@@ -81,6 +89,23 @@ export function MobileHeader({ onMenuClick }: MobileHeaderProps) {
               </span>
             </div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="/profile">
+              <User className="mr-2 h-4 w-4" aria-hidden="true" />
+              My Profile
+            </Link>
+          </DropdownMenuItem>
+          {canManageSettings && (
+            <DropdownMenuItem asChild>
+              <Link href="/settings">
+                <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <ThemeToggle />
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={signOut}

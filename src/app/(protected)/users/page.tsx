@@ -14,7 +14,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetUserPassword } from "@/lib/api/users";
-import { usePermissions } from "@/lib/hooks";
+import { usePermissions, useDebounce } from "@/lib/hooks";
 import {
   Button,
   Card,
@@ -71,13 +71,7 @@ export default function UsersPage() {
   const canManageUsers = can("USER_MANAGE");
 
   // Debounced search
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  useMemo(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   const { data, isLoading, error } = useUsers({
     page: currentPage,

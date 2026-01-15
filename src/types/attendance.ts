@@ -53,3 +53,70 @@ export interface MarkAttendanceInput {
     status: AttendanceStatus;
   }[];
 }
+
+/**
+ * Attendance history item (session with stats)
+ */
+export interface AttendanceHistoryItem {
+  id: string;
+  date: string;
+  batchId: string;
+  batchName: string;
+  createdBy: {
+    id: string;
+    name: string;
+  };
+  createdAt: string;
+  stats: {
+    present: number;
+    absent: number;
+    total: number;
+    attendanceRate: number;
+  };
+}
+
+/**
+ * Attendance history params for API
+ */
+export interface AttendanceHistoryParams {
+  batchId?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * Batch summary for dashboard
+ */
+export interface BatchAttendanceSummary {
+  batchId: string;
+  batchName: string;
+  present: number;
+  absent: number;
+  total: number;
+}
+
+/**
+ * Pending batch (not yet marked today)
+ */
+export interface PendingBatch {
+  batchId: string;
+  batchName: string;
+  studentCount: number;
+}
+
+/**
+ * Today's attendance summary (from dashboard endpoint)
+ */
+export interface AttendanceSummary {
+  date: string;
+  totalPresent: number;
+  totalAbsent: number;
+  totalMarked: number;
+  totalActiveStudents: number;
+  batchesMarked: number;
+  batchesPending: number;
+  batchSummaries: BatchAttendanceSummary[];
+  pendingBatches: PendingBatch[];
+}

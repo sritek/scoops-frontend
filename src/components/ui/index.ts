@@ -134,3 +134,10 @@ export type { AccessDeniedProps } from "./access-denied";
 // Pagination
 export { Pagination, PaginationInfo } from "./pagination";
 export type { PaginationProps } from "./pagination";
+
+// Photo Upload
+export { PhotoUpload, Avatar } from "./photo-upload";
+export type { PhotoUploadProps, AvatarProps } from "./photo-upload";
+
+// Theme Toggle
+export { ThemeToggle, useAppTheme } from "./theme-toggle";
