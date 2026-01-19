@@ -41,9 +41,13 @@ class ApiClient {
 
     // Build headers
     const requestHeaders: Record<string, string> = {
-      "Content-Type": "application/json",
       ...headers,
     };
+
+    // Only set Content-Type when there's a body
+    if (body && method !== "GET") {
+      requestHeaders["Content-Type"] = "application/json";
+    }
 
     // Add auth token if available and not skipped
     if (!skipAuth) {
@@ -122,23 +126,41 @@ class ApiClient {
   }
 
   // HTTP method shortcuts
-  async get<T>(endpoint: string, options?: Omit<RequestOptions, "method" | "body">) {
+  async get<T>(
+    endpoint: string,
+    options?: Omit<RequestOptions, "method" | "body">
+  ) {
     return this.request<T>(endpoint, { ...options, method: "GET" });
   }
 
-  async post<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, "method">) {
+  async post<T>(
+    endpoint: string,
+    body?: unknown,
+    options?: Omit<RequestOptions, "method">
+  ) {
     return this.request<T>(endpoint, { ...options, method: "POST", body });
   }
 
-  async put<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, "method">) {
+  async put<T>(
+    endpoint: string,
+    body?: unknown,
+    options?: Omit<RequestOptions, "method">
+  ) {
     return this.request<T>(endpoint, { ...options, method: "PUT", body });
   }
 
-  async patch<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, "method">) {
+  async patch<T>(
+    endpoint: string,
+    body?: unknown,
+    options?: Omit<RequestOptions, "method">
+  ) {
     return this.request<T>(endpoint, { ...options, method: "PATCH", body });
   }
 
-  async delete<T>(endpoint: string, options?: Omit<RequestOptions, "method" | "body">) {
+  async delete<T>(
+    endpoint: string,
+    options?: Omit<RequestOptions, "method" | "body">
+  ) {
     return this.request<T>(endpoint, { ...options, method: "DELETE" });
   }
 }

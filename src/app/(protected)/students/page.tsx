@@ -35,6 +35,7 @@ import { PAGINATION_DEFAULTS } from "@/types";
  */
 export default function StudentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageLimit, setPageLimit] = useState<number>(PAGINATION_DEFAULTS.LIMIT);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBatchId, setSelectedBatchId] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("");
@@ -52,7 +53,7 @@ export default function StudentsPage() {
   // Fetch students with pagination and filters
   const { data, isLoading, error } = useStudents({
     page: currentPage,
-    limit: PAGINATION_DEFAULTS.LIMIT,
+    limit: pageLimit,
     search: debouncedSearch || undefined,
     batchId: selectedBatchId || undefined,
     status: (selectedStatus as "active" | "inactive") || undefined,
@@ -91,6 +92,11 @@ export default function StudentsPage() {
   const handleCategoryChange = useCallback((value: string) => {
     setSelectedCategory(value === "all" ? "" : value);
     setCurrentPage(1);
+  }, []);
+
+  const handleLimitChange = useCallback((limit: number) => {
+    setPageLimit(limit);
+    setCurrentPage(1); // Reset to first page when changing limit
   }, []);
 
   const clearFilters = useCallback(() => {
@@ -399,8 +405,9 @@ export default function StudentsPage() {
                 paginationMode="server"
                 serverPagination={pagination}
                 onPageChange={setCurrentPage}
+                onLimitChange={handleLimitChange}
                 isLoading={isLoading}
-                pageSize={PAGINATION_DEFAULTS.LIMIT}
+                pageSize={pageLimit}
                 emptyMessage="No students found."
               />
             </Card>

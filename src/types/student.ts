@@ -16,6 +16,7 @@ export interface StudentParent {
   phone: string;
   photoUrl: string | null;
   relation: ParentRelation;
+  isPrimaryContact: boolean;
 }
 
 export interface Student {
@@ -59,6 +60,7 @@ export interface CreateStudentInput {
     phone: string;
     relation: ParentRelation;
     photoUrl?: string | null;
+    isPrimaryContact?: boolean;
   }[];
 }
 
@@ -82,5 +84,6 @@ export interface UpdateStudentInput {
     phone: string;
     relation: ParentRelation;
     photoUrl?: string | null;
+    isPrimaryContact?: boolean;
   }[];
 }

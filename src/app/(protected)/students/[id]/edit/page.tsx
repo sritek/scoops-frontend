@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { use, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
@@ -49,20 +49,56 @@ export default function EditStudentPage({
   const { id } = use(params);
   const router = useRouter();
 
-  const { data: student, isLoading: isLoadingStudent, error: studentError } = useStudent(id);
+  const {
+    data: student,
+    isLoading: isLoadingStudent,
+    error: studentError,
+  } = useStudent(id);
   const { data: batchesData } = useBatches({ limit: 100 });
   const batches = batchesData?.data ?? [];
 
-  const { mutate: updateStudent, isPending, error: submitError } = useUpdateStudent();
+  const {
+    mutate: updateStudent,
+    isPending,
+    error: submitError,
+  } = useUpdateStudent();
+
+  const initialValues = useMemo(
+    () =>
+      ({
+        firstName: student?.firstName || "",
+        lastName: student?.lastName || "",
+        gender: student?.gender || undefined,
+        dob: student?.dob ? student?.dob.split("T")[0] : undefined,
+        category: student?.category || undefined,
+        isCwsn: student?.isCwsn || false,
+        photoUrl: student?.photoUrl || null,
+        admissionYear: student?.admissionYear || new Date().getFullYear(),
+        batchId: student?.batchId || undefined,
+        parents:
+          student?.parents?.map((p) => ({
+            firstName: p.firstName,
+            lastName: p.lastName,
+            phone: p.phone,
+            relation: p.relation,
+            photoUrl: p.photoUrl || null,
+            isPrimaryContact: p.isPrimaryContact || false,
+          })) || [],
+      } satisfies StudentFormData),
+    [student]
+  );
 
   const {
     register,
     handleSubmit,
     control,
     reset,
+    getValues,
+    setValue,
     formState: { errors },
   } = useForm<StudentFormData>({
     resolver: zodResolver(studentFormSchema),
+    defaultValues: initialValues,
   });
 
   // Dynamic parent fields
@@ -71,29 +107,27 @@ export default function EditStudentPage({
     name: "parents",
   });
 
-  // Pre-populate form when student data loads
   useEffect(() => {
-    if (student) {
-      reset({
-        firstName: student.firstName,
-        lastName: student.lastName,
-        gender: student.gender || undefined,
-        dob: student.dob ? student.dob.split("T")[0] : undefined,
-        category: student.category || undefined,
-        isCwsn: student.isCwsn || false,
-        photoUrl: student.photoUrl || null,
-        admissionYear: student.admissionYear,
-        batchId: student.batchId || undefined,
-        parents: student.parents?.map((p) => ({
-          firstName: p.firstName,
-          lastName: p.lastName,
-          phone: p.phone,
-          relation: p.relation,
-          photoUrl: p.photoUrl || null,
-        })) || [],
-      });
-    }
-  }, [student, reset]);
+    reset(initialValues);
+  }, [initialValues, reset]);
+
+  // Handle setting primary contact (radio behavior - only one can be selected)
+  const handleSetPrimaryContact = (selectedIndex: number) => {
+    const currentParents = getValues("parents") || [];
+    currentParents.forEach((_, idx) => {
+      setValue(`parents.${idx}.isPrimaryContact`, idx === selectedIndex);
+    });
+  };
+
+  // Add parent with auto-select first as primary contact
+  const handleAddParent = () => {
+    const currentParents = getValues("parents") || [];
+    const isFirstParent = currentParents.length === 0;
+    append({
+      ...defaultParentValues,
+      isPrimaryContact: isFirstParent, // Auto-select first parent as primary
+    });
+  };
 
   const onSubmit = (data: StudentFormData) => {
     updateStudent(
@@ -233,7 +267,7 @@ export default function EditStudentPage({
                   control={control}
                   render={({ field }) => (
                     <Select
-                      value={field.value || ""}
+                      value={field.value ?? ""}
                       onValueChange={field.onChange}
                     >
                       <SelectTrigger id="gender">
@@ -256,11 +290,7 @@ export default function EditStudentPage({
                 label="Date of Birth"
                 error={errors.dob?.message}
               >
-                <Input
-                  id="dob"
-                  type="date"
-                  {...register("dob")}
-                />
+                <Input id="dob" type="date" {...register("dob")} />
               </FormField>
             </div>
 
@@ -276,7 +306,7 @@ export default function EditStudentPage({
                   control={control}
                   render={({ field }) => (
                     <Select
-                      value={field.value || ""}
+                      value={field.value ?? ""}
                       onValueChange={field.onChange}
                     >
                       <SelectTrigger id="category">
@@ -320,7 +350,7 @@ export default function EditStudentPage({
                 control={control}
                 render={({ field }) => (
                   <Select
-                    value={field.value || ""}
+                    value={field.value ?? ""}
                     onValueChange={field.onChange}
                   >
                     <SelectTrigger id="batchId">
@@ -369,7 +399,7 @@ export default function EditStudentPage({
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => append(defaultParentValues)}
+              onClick={handleAddParent}
             >
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
               Add Parent
@@ -378,20 +408,30 @@ export default function EditStudentPage({
           <CardContent className="space-y-4">
             {fields.length === 0 ? (
               <p className="text-sm text-text-muted text-center py-4">
-                No parents added yet. Click &quot;Add Parent&quot; to add guardian details.
+                No parents added yet. Click &quot;Add Parent&quot; to add
+                guardian details.
               </p>
             ) : (
-              fields.map((field, index) => (
-                <ParentFieldGroup
-                  key={field.id}
-                  index={index}
-                  register={register}
-                  control={control}
-                  errors={errors}
-                  onRemove={() => remove(index)}
-                  canRemove={fields.length > 0}
-                />
-              ))
+              <>
+                {fields.map((field, index) => (
+                  <ParentFieldGroup
+                    key={field.id}
+                    index={index}
+                    register={register}
+                    control={control}
+                    errors={errors}
+                    onRemove={() => remove(index)}
+                    canRemove={fields.length > 0}
+                    onSetPrimaryContact={handleSetPrimaryContact}
+                  />
+                ))}
+                {/* Validation error for primary contact */}
+                {errors.parents?.message && (
+                  <p className="text-sm text-error mt-2">
+                    {errors.parents.message}
+                  </p>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -420,6 +460,7 @@ interface ParentFieldGroupProps {
   errors: ReturnType<typeof useForm<StudentFormData>>["formState"]["errors"];
   onRemove: () => void;
   canRemove: boolean;
+  onSetPrimaryContact: (index: number) => void;
 }
 
 function ParentFieldGroup({
@@ -429,6 +470,7 @@ function ParentFieldGroup({
   errors,
   onRemove,
   canRemove,
+  onSetPrimaryContact,
 }: ParentFieldGroupProps) {
   const parentErrors = errors.parents?.[index];
 
@@ -523,10 +565,7 @@ function ParentFieldGroup({
             name={`parents.${index}.relation`}
             control={control}
             render={({ field }) => (
-              <Select
-                value={field.value}
-                onValueChange={field.onChange}
-              >
+              <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger id={`parents.${index}.relation`}>
                   <SelectValue placeholder="Select relation" />
                 </SelectTrigger>
@@ -541,6 +580,34 @@ function ParentFieldGroup({
             )}
           />
         </FormField>
+      </div>
+
+      {/* Primary Contact */}
+      <div className="flex items-center gap-2 pt-2 border-t border-border-subtle">
+        <Controller
+          name={`parents.${index}.isPrimaryContact`}
+          control={control}
+          render={({ field }) => (
+            <Checkbox
+              id={`parents.${index}.isPrimaryContact`}
+              checked={field.value}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  // Radio behavior: selecting this one deselects others
+                  onSetPrimaryContact(index);
+                }
+                // Note: We don't allow unchecking directly - user must select another parent
+                // This ensures exactly one primary contact is always selected
+              }}
+            />
+          )}
+        />
+        <label
+          htmlFor={`parents.${index}.isPrimaryContact`}
+          className="text-sm text-text-primary cursor-pointer"
+        >
+          Primary contact for messages
+        </label>
       </div>
     </div>
   );

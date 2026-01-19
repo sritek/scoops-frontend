@@ -19,6 +19,12 @@ import {
   Mail,
   MapPin,
   X,
+  Clock,
+  Calendar,
+  Bell,
+  Cake,
+  Activity,
+  Settings2,
 } from "lucide-react";
 import {
   useOrganization,
@@ -28,7 +34,16 @@ import {
   useCreateTemplate,
   useDeleteTemplate,
 } from "@/lib/api";
+import {
+  useAllPeriodTemplates,
+  useCreatePeriodTemplate,
+  useUpdatePeriodTemplate,
+  useDeletePeriodTemplate,
+} from "@/lib/api/schedule";
 import type { MessageTemplate } from "@/lib/api";
+import type { PeriodTemplate, PeriodTemplateSlot } from "@/types/schedule";
+import { DAYS_OF_WEEK, DEFAULT_PERIOD_SLOTS, DEFAULT_ACTIVE_DAYS } from "@/types/schedule";
+import { PeriodTemplateEditor } from "@/components/batches";
 import { usePermissions } from "@/lib/hooks";
 import {
   Card,
@@ -60,7 +75,12 @@ const TEMPLATE_TYPES = [
   { value: "absent", label: "Absence Notification" },
   { value: "fee_due", label: "Fee Due Reminder" },
   { value: "fee_paid", label: "Fee Payment Confirmation" },
+  { value: "fee_overdue", label: "Fee Overdue Alert" },
+  { value: "fee_reminder", label: "Fee Reminder" },
+  { value: "birthday", label: "Birthday Wishes" },
 ] as const;
+
+type TemplateTypeValue = (typeof TEMPLATE_TYPES)[number]["value"];
 
 const TIMEZONES = [
   { value: "Asia/Kolkata", label: "India (IST)" },
@@ -104,6 +124,15 @@ export default function SettingsPage() {
 
       {/* Organization Settings */}
       <OrganizationSettings />
+
+      {/* Notification Settings */}
+      <NotificationSettingsSection />
+
+      {/* Feature Flags */}
+      <FeatureFlagsSection />
+
+      {/* Period Templates */}
+      <PeriodTemplatesSection />
 
       {/* Message Templates */}
       <MessageTemplatesSection />
@@ -477,6 +506,786 @@ function OrganizationSettings() {
 }
 
 /**
+ * Notification Settings Section
+ */
+function NotificationSettingsSection() {
+  const { data: org, isLoading } = useOrganization();
+  const updateOrg = useUpdateOrganization();
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    notificationsEnabled: true,
+    feeOverdueCheckTime: "09:00",
+    feeReminderDays: 3,
+    birthdayNotifications: true,
+    attendanceBufferMinutes: 5,
+  });
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Initialize form when org loads
+  useEffect(() => {
+    if (org && !isEditing) {
+      setFormData({
+        notificationsEnabled: org.notificationsEnabled ?? true,
+        feeOverdueCheckTime: org.feeOverdueCheckTime || "09:00",
+        feeReminderDays: org.feeReminderDays ?? 3,
+        birthdayNotifications: org.birthdayNotifications ?? true,
+        attendanceBufferMinutes: org.attendanceBufferMinutes ?? 5,
+      });
+    }
+  }, [org, isEditing]);
+
+  const handleEdit = () => {
+    setIsEditing(true);
+    setSuccessMessage(null);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    if (org) {
+      setFormData({
+        notificationsEnabled: org.notificationsEnabled ?? true,
+        feeOverdueCheckTime: org.feeOverdueCheckTime || "09:00",
+        feeReminderDays: org.feeReminderDays ?? 3,
+        birthdayNotifications: org.birthdayNotifications ?? true,
+        attendanceBufferMinutes: org.attendanceBufferMinutes ?? 5,
+      });
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      await updateOrg.mutateAsync({
+        notificationsEnabled: formData.notificationsEnabled,
+        feeOverdueCheckTime: formData.feeOverdueCheckTime,
+        feeReminderDays: formData.feeReminderDays,
+        birthdayNotifications: formData.birthdayNotifications,
+        attendanceBufferMinutes: formData.attendanceBufferMinutes,
+      });
+      setIsEditing(false);
+      setSuccessMessage("Notification settings updated successfully!");
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error("Failed to update notification settings:", err);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-48" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Bell className="h-5 w-5 text-text-muted" aria-hidden="true" />
+              Notification Settings
+            </CardTitle>
+            <CardDescription>
+              Configure automated WhatsApp notifications
+            </CardDescription>
+          </div>
+          {!isEditing && (
+            <Button variant="secondary" size="sm" onClick={handleEdit}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Success/Error messages */}
+        {successMessage && (
+          <div className="flex items-center gap-2 p-3 mb-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700">
+            <Check className="h-4 w-4" />
+            <span className="text-sm">{successMessage}</span>
+          </div>
+        )}
+        {updateOrg.error && (
+          <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg text-error">
+            <AlertCircle className="h-4 w-4" />
+            <span className="text-sm">Failed to update notification settings</span>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          {/* Master Toggle */}
+          <div className="flex items-center justify-between p-4 bg-bg-app rounded-lg">
+            <div>
+              <p className="font-medium text-sm">Enable Notifications</p>
+              <p className="text-xs text-text-muted">
+                Send automated WhatsApp messages to parents
+              </p>
+            </div>
+            {isEditing ? (
+              <input
+                type="checkbox"
+                checked={formData.notificationsEnabled}
+                onChange={(e) =>
+                  setFormData({ ...formData, notificationsEnabled: e.target.checked })
+                }
+                className="h-5 w-5 rounded border-border-subtle"
+              />
+            ) : (
+              <Badge variant={org?.notificationsEnabled ? "success" : "default"}>
+                {org?.notificationsEnabled ? "Enabled" : "Disabled"}
+              </Badge>
+            )}
+          </div>
+
+          {/* Fee Settings */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-text-muted" />
+              Fee Notifications
+            </h4>
+            
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="p-4 bg-bg-app rounded-lg">
+                <Label htmlFor="feeOverdueTime" className="text-sm font-medium">
+                  <Clock className="inline h-3.5 w-3.5 mr-1" />
+                  Overdue Check Time
+                </Label>
+                <p className="text-xs text-text-muted mb-2">
+                  When to check and notify for overdue fees
+                </p>
+                {isEditing ? (
+                  <Input
+                    id="feeOverdueTime"
+                    type="time"
+                    value={formData.feeOverdueCheckTime}
+                    onChange={(e) =>
+                      setFormData({ ...formData, feeOverdueCheckTime: e.target.value })
+                    }
+                  />
+                ) : (
+                  <p className="text-sm font-medium py-2">
+                    {org?.feeOverdueCheckTime || "09:00"}
+                  </p>
+                )}
+              </div>
+
+              <div className="p-4 bg-bg-app rounded-lg">
+                <Label htmlFor="reminderDays" className="text-sm font-medium">
+                  <Calendar className="inline h-3.5 w-3.5 mr-1" />
+                  Reminder Days
+                </Label>
+                <p className="text-xs text-text-muted mb-2">
+                  Send reminder X days before due date
+                </p>
+                {isEditing ? (
+                  <Input
+                    id="reminderDays"
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={formData.feeReminderDays}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        feeReminderDays: parseInt(e.target.value) || 3,
+                      })
+                    }
+                  />
+                ) : (
+                  <p className="text-sm font-medium py-2">
+                    {org?.feeReminderDays || 3} days
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Attendance Settings */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium flex items-center gap-2">
+              <Users className="h-4 w-4 text-text-muted" />
+              Attendance Notifications
+            </h4>
+            
+            <div className="p-4 bg-bg-app rounded-lg">
+              <Label htmlFor="attendanceBuffer" className="text-sm font-medium">
+                <Clock className="inline h-3.5 w-3.5 mr-1" />
+                Notification Buffer Time
+              </Label>
+              <p className="text-xs text-text-muted mb-2">
+                Minutes after first period starts before sending absence notifications
+              </p>
+              {isEditing ? (
+                <Input
+                  id="attendanceBuffer"
+                  type="number"
+                  min={0}
+                  max={60}
+                  value={formData.attendanceBufferMinutes}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      attendanceBufferMinutes: parseInt(e.target.value) || 5,
+                    })
+                  }
+                />
+              ) : (
+                <p className="text-sm font-medium py-2">
+                  {org?.attendanceBufferMinutes ?? 5} minutes
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Birthday Settings */}
+          <div className="flex items-center justify-between p-4 bg-bg-app rounded-lg">
+            <div className="flex items-center gap-3">
+              <Cake className="h-5 w-5 text-text-muted" />
+              <div>
+                <p className="font-medium text-sm">Birthday Notifications</p>
+                <p className="text-xs text-text-muted">
+                  Send birthday wishes to students via parents
+                </p>
+              </div>
+            </div>
+            {isEditing ? (
+              <input
+                type="checkbox"
+                checked={formData.birthdayNotifications}
+                onChange={(e) =>
+                  setFormData({ ...formData, birthdayNotifications: e.target.checked })
+                }
+                className="h-5 w-5 rounded border-border-subtle"
+              />
+            ) : (
+              <Badge variant={org?.birthdayNotifications ? "success" : "default"}>
+                {org?.birthdayNotifications ? "Enabled" : "Disabled"}
+              </Badge>
+            )}
+          </div>
+
+          {/* Save/Cancel buttons */}
+          {isEditing && (
+            <div className="flex gap-3 pt-4">
+              <Button onClick={handleSave} disabled={updateOrg.isPending}>
+                <Save className="mr-2 h-4 w-4" />
+                {updateOrg.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleCancel}
+                disabled={updateOrg.isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Feature Flags Section
+ */
+function FeatureFlagsSection() {
+  const { data: org, isLoading } = useOrganization();
+  const updateOrg = useUpdateOrganization();
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    jobsDashboardEnabled: false,
+  });
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Initialize form when org loads
+  useEffect(() => {
+    if (org && !isEditing) {
+      setFormData({
+        jobsDashboardEnabled: org.jobsDashboardEnabled ?? false,
+      });
+    }
+  }, [org, isEditing]);
+
+  const handleEdit = () => {
+    setIsEditing(true);
+    setSuccessMessage(null);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    if (org) {
+      setFormData({
+        jobsDashboardEnabled: org.jobsDashboardEnabled ?? false,
+      });
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      await updateOrg.mutateAsync({
+        jobsDashboardEnabled: formData.jobsDashboardEnabled,
+      });
+      setIsEditing(false);
+      setSuccessMessage("Feature flags updated successfully!");
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error("Failed to update feature flags:", err);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-48" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {[1, 2].map((i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Settings2 className="h-5 w-5 text-text-muted" aria-hidden="true" />
+              Feature Flags
+            </CardTitle>
+            <CardDescription>
+              Enable or disable advanced features
+            </CardDescription>
+          </div>
+          {!isEditing && (
+            <Button variant="secondary" size="sm" onClick={handleEdit}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Success/Error messages */}
+        {successMessage && (
+          <div className="flex items-center gap-2 p-3 mb-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700">
+            <Check className="h-4 w-4" />
+            <span className="text-sm">{successMessage}</span>
+          </div>
+        )}
+        {updateOrg.error && (
+          <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg text-error">
+            <AlertCircle className="h-4 w-4" />
+            <span className="text-sm">Failed to update feature flags</span>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {/* Jobs Dashboard Toggle */}
+          <div className="flex items-center justify-between p-4 bg-bg-app rounded-lg">
+            <div className="flex items-center gap-3">
+              <Activity className="h-5 w-5 text-text-muted" />
+              <div>
+                <p className="font-medium text-sm">Jobs Dashboard</p>
+                <p className="text-xs text-text-muted">
+                  Enable job monitoring and manual triggers
+                </p>
+              </div>
+            </div>
+            {isEditing ? (
+              <input
+                type="checkbox"
+                checked={formData.jobsDashboardEnabled}
+                onChange={(e) =>
+                  setFormData({ ...formData, jobsDashboardEnabled: e.target.checked })
+                }
+                className="h-5 w-5 rounded border-border-subtle"
+              />
+            ) : (
+              <Badge variant={org?.jobsDashboardEnabled ? "success" : "default"}>
+                {org?.jobsDashboardEnabled ? "Enabled" : "Disabled"}
+              </Badge>
+            )}
+          </div>
+
+          {org?.jobsDashboardEnabled && !isEditing && (
+            <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg">
+              <p className="text-sm text-primary-700">
+                <Link href="/settings/jobs" className="font-medium underline hover:no-underline">
+                  Go to Jobs Dashboard →
+                </Link>
+              </p>
+            </div>
+          )}
+
+          {/* Save/Cancel buttons */}
+          {isEditing && (
+            <div className="flex gap-3 pt-4">
+              <Button onClick={handleSave} disabled={updateOrg.isPending}>
+                <Save className="mr-2 h-4 w-4" />
+                {updateOrg.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleCancel}
+                disabled={updateOrg.isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Period Templates Section
+ */
+function PeriodTemplatesSection() {
+  const { data: templates, isLoading, error } = useAllPeriodTemplates();
+  const createTemplate = useCreatePeriodTemplate();
+  const updateTemplate = useUpdatePeriodTemplate();
+  const deleteTemplate = useDeletePeriodTemplate();
+
+  const [editingTemplate, setEditingTemplate] = useState<PeriodTemplate | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Form state for create/edit
+  type SlotInput = Omit<PeriodTemplateSlot, "id" | "templateId">;
+  const [formData, setFormData] = useState<{
+    name: string;
+    isDefault: boolean;
+    activeDays: number[];
+    slots: SlotInput[];
+  }>({
+    name: "",
+    isDefault: false,
+    activeDays: DEFAULT_ACTIVE_DAYS,
+    slots: [...DEFAULT_PERIOD_SLOTS],
+  });
+
+  // Initialize form when editing
+  useEffect(() => {
+    if (editingTemplate) {
+      setFormData({
+        name: editingTemplate.name,
+        isDefault: editingTemplate.isDefault,
+        activeDays: editingTemplate.activeDays || DEFAULT_ACTIVE_DAYS,
+        slots: editingTemplate.slots.map((s) => ({
+          periodNumber: s.periodNumber,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          isBreak: s.isBreak,
+          breakName: s.breakName,
+        })),
+      });
+    }
+  }, [editingTemplate]);
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      isDefault: false,
+      activeDays: DEFAULT_ACTIVE_DAYS,
+      slots: [...DEFAULT_PERIOD_SLOTS],
+    });
+  };
+
+  const handleCreate = async () => {
+    try {
+      await createTemplate.mutateAsync({
+        name: formData.name,
+        isDefault: formData.isDefault,
+        activeDays: formData.activeDays,
+        slots: formData.slots,
+      });
+      setIsCreating(false);
+      resetForm();
+    } catch (err) {
+      console.error("Failed to create template:", err);
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingTemplate) return;
+    try {
+      await updateTemplate.mutateAsync({
+        id: editingTemplate.id,
+        data: {
+          name: formData.name,
+          isDefault: formData.isDefault,
+          activeDays: formData.activeDays,
+          slots: formData.slots,
+        },
+      });
+      setEditingTemplate(null);
+      resetForm();
+    } catch (err) {
+      console.error("Failed to update template:", err);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this template?")) return;
+    try {
+      await deleteTemplate.mutateAsync(id);
+    } catch (err) {
+      console.error("Failed to delete template:", err);
+    }
+  };
+
+  const toggleDay = (day: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      activeDays: prev.activeDays.includes(day)
+        ? prev.activeDays.filter((d) => d !== day)
+        : [...prev.activeDays, day].sort((a, b) => a - b),
+    }));
+  };
+
+  const openCreateDialog = () => {
+    resetForm();
+    setIsCreating(true);
+  };
+
+  const openEditDialog = (template: PeriodTemplate) => {
+    setEditingTemplate(template);
+  };
+
+  const closeDialog = () => {
+    setEditingTemplate(null);
+    setIsCreating(false);
+    resetForm();
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-48" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const isDialogOpen = isCreating || !!editingTemplate;
+  const isPending = createTemplate.isPending || updateTemplate.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Clock className="h-5 w-5 text-text-muted" aria-hidden="true" />
+              Period Templates
+            </CardTitle>
+            <CardDescription>
+              Define time slots and breaks for batch schedules
+            </CardDescription>
+          </div>
+          <Button size="sm" onClick={openCreateDialog}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Template
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg text-error">
+            <AlertCircle className="h-4 w-4" />
+            <span className="text-sm">Failed to load templates</span>
+          </div>
+        )}
+
+        {templates && templates.length === 0 ? (
+          <div className="text-center py-8 text-text-muted">
+            <Clock className="h-10 w-10 mx-auto mb-2 opacity-50" />
+            <p>No period templates configured yet.</p>
+            <p className="text-sm">Create your first template to define class schedules.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {templates?.map((template) => (
+              <div
+                key={template.id}
+                className="flex items-center justify-between p-4 bg-bg-app rounded-lg"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium text-sm">{template.name}</span>
+                    {template.isDefault && (
+                      <Badge variant="success" className="text-xs">
+                        Default
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-text-muted">
+                    <span>
+                      {template.slots.filter((s) => !s.isBreak).length} periods
+                    </span>
+                    <span>
+                      {template.slots.filter((s) => s.isBreak).length} breaks
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {template.activeDays?.length === 6
+                        ? "Mon-Sat"
+                        : template.activeDays
+                            ?.map((d) => DAYS_OF_WEEK.find((day) => day.value === d)?.short)
+                            .join(", ")}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-2 ml-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEditDialog(template)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  {!template.isDefault && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(template.id)}
+                      className="text-error hover:text-error"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Create/Edit Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={closeDialog}>
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingTemplate ? "Edit Template" : "Create Period Template"}
+              </DialogTitle>
+              <DialogDescription>
+                {editingTemplate
+                  ? "Update the period template settings and time slots"
+                  : "Define a new period template with time slots and breaks"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              {/* Name and Default */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="templateName">Template Name</Label>
+                  <Input
+                    id="templateName"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    placeholder="e.g., Default (8 Periods)"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Options</Label>
+                  <div className="flex items-center gap-2 pt-2">
+                    <input
+                      type="checkbox"
+                      id="templateDefault"
+                      checked={formData.isDefault}
+                      onChange={(e) =>
+                        setFormData({ ...formData, isDefault: e.target.checked })
+                      }
+                      className="rounded border-border-subtle"
+                    />
+                    <Label htmlFor="templateDefault" className="font-normal">
+                      Set as default template
+                    </Label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Days */}
+              <div className="space-y-2">
+                <Label>Active Days</Label>
+                <p className="text-xs text-text-muted mb-2">
+                  Select which days this schedule applies to
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {DAYS_OF_WEEK.map((day) => (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => toggleDay(day.value)}
+                      className={cn(
+                        "px-3 py-1.5 text-sm rounded-md border transition-all",
+                        formData.activeDays.includes(day.value)
+                          ? "bg-primary-600 text-white border-primary-600"
+                          : "bg-bg-app border-border-subtle hover:border-primary-600"
+                      )}
+                    >
+                      {day.short}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Period Slots */}
+              <div className="space-y-2">
+                <Label>Period Slots</Label>
+                <PeriodTemplateEditor
+                  slots={formData.slots}
+                  onChange={(slots) => setFormData({ ...formData, slots })}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="secondary" onClick={closeDialog}>
+                Cancel
+              </Button>
+              <Button
+                onClick={editingTemplate ? handleUpdate : handleCreate}
+                disabled={isPending || !formData.name || formData.slots.length === 0}
+              >
+                {isPending
+                  ? "Saving..."
+                  : editingTemplate
+                  ? "Save Changes"
+                  : "Create Template"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
  * Message Templates Section
  */
 function MessageTemplatesSection() {
@@ -490,7 +1299,7 @@ function MessageTemplatesSection() {
   );
   const [isCreating, setIsCreating] = useState(false);
   const [newTemplate, setNewTemplate] = useState({
-    type: "absent" as "absent" | "fee_due" | "fee_paid",
+    type: "absent" as TemplateTypeValue,
     name: "",
     content: "",
     isActive: true,
@@ -729,7 +1538,7 @@ function MessageTemplatesSection() {
                 <Label>Type</Label>
                 <Select
                   value={newTemplate.type}
-                  onValueChange={(value: "absent" | "fee_due" | "fee_paid") =>
+                  onValueChange={(value: TemplateTypeValue) =>
                     setNewTemplate({ ...newTemplate, type: value })
                   }
                 >

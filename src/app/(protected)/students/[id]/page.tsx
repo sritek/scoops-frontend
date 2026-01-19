@@ -1,17 +1,22 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Edit,
   Phone,
-  Calendar,
   User,
   GraduationCap,
   AlertCircle,
+  UserX,
+  FileText,
+  Download,
+  BookOpen,
 } from "lucide-react";
-import { useStudent } from "@/lib/api/students";
+import { useDeleteStudent, useStudent } from "@/lib/api/students";
+import { useStudentReportCard, downloadReportCardPDF } from "@/lib/api";
 import { usePermissions } from "@/lib/hooks";
 import {
   Button,
@@ -22,7 +27,9 @@ import {
   Badge,
   Skeleton,
   Avatar,
+  Spinner,
 } from "@/components/ui";
+import type { ExamType } from "@/types/exam";
 
 /**
  * Student Detail Page
@@ -40,9 +47,45 @@ export default function StudentDetailPage({
 }) {
   const { id } = use(params);
   const { data: student, isLoading, error } = useStudent(id);
+  const { data: reportCard, isLoading: reportCardLoading } = useStudentReportCard(id);
+  const { mutate: deactivateStudent, isPending } = useDeleteStudent();
+  const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const { can } = usePermissions();
 
   const canEditStudent = can("STUDENT_EDIT");
+
+  const handleDownloadPDF = async () => {
+    setIsDownloadingPDF(true);
+    try {
+      const blob = await downloadReportCardPDF(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Report_Card_${student?.fullName?.replace(/\s+/g, "_") || "Student"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("Report card downloaded successfully");
+    } catch {
+      toast.error("Failed to download report card");
+    } finally {
+      setIsDownloadingPDF(false);
+    }
+  };
+
+  const handleDeactivate = () => {
+    if (!student) return;
+
+    deactivateStudent(student.id, {
+      onSuccess: () => {
+        toast.success("Student deactivated successfully");
+      },
+      onError: () => {
+        toast.error("Failed to deactivate student");
+      },
+    });
+  };
 
   if (isLoading) {
     return <StudentDetailSkeleton />;
@@ -94,7 +137,9 @@ export default function StudentDetailPage({
               {student.fullName}
             </h1>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant={student.status === "active" ? "success" : "default"}>
+              <Badge
+                variant={student.status === "active" ? "success" : "default"}
+              >
                 {student.status}
               </Badge>
               {student.batchName && (
@@ -105,12 +150,25 @@ export default function StudentDetailPage({
         </div>
 
         {canEditStudent && (
-          <Button asChild>
-            <Link href={`/students/${id}/edit`}>
-              <Edit className="mr-2 h-4 w-4" aria-hidden="true" />
-              Edit Student
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild>
+              <Link href={`/students/${id}/edit`}>
+                <Edit className="mr-2 h-4 w-4" aria-hidden="true" />
+                Edit Student
+              </Link>
+            </Button>
+            {student.status === "active" && (
+              <Button
+                variant="destructive"
+                isLoading={isPending}
+                disabled={isPending}
+                onClick={handleDeactivate}
+              >
+                <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
+                Deactivate
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -137,10 +195,7 @@ export default function StudentDetailPage({
               label="Category"
               value={student.category ? student.category.toUpperCase() : "—"}
             />
-            <InfoRow
-              label="CWSN"
-              value={student.isCwsn ? "Yes" : "No"}
-            />
+            <InfoRow label="CWSN" value={student.isCwsn ? "Yes" : "No"} />
           </CardContent>
         </Card>
 
@@ -148,13 +203,22 @@ export default function StudentDetailPage({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <GraduationCap className="h-5 w-5 text-text-muted" aria-hidden="true" />
+              <GraduationCap
+                className="h-5 w-5 text-text-muted"
+                aria-hidden="true"
+              />
               Academic Information
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <InfoRow label="Admission Year" value={String(student.admissionYear)} />
-            <InfoRow label="Batch" value={student.batchName || "Not assigned"} />
+            <InfoRow
+              label="Admission Year"
+              value={String(student.admissionYear)}
+            />
+            <InfoRow
+              label="Batch"
+              value={student.batchName || "Not assigned"}
+            />
             <InfoRow
               label="Enrolled On"
               value={formatDate(student.createdAt)}
@@ -190,8 +254,13 @@ export default function StudentDetailPage({
                         size="md"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{parent.fullName}</p>
-                        <Badge variant="default" className="capitalize text-xs mt-0.5">
+                        <p className="font-medium truncate">
+                          {parent.fullName}
+                        </p>
+                        <Badge
+                          variant="default"
+                          className="capitalize text-xs mt-0.5"
+                        >
                           {parent.relation}
                         </Badge>
                       </div>
@@ -216,6 +285,137 @@ export default function StudentDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Report Card Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <FileText className="h-5 w-5 text-text-muted" aria-hidden="true" />
+            Report Card
+          </CardTitle>
+          {reportCard && reportCard.exams.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPDF}
+              disabled={isDownloadingPDF}
+            >
+              {isDownloadingPDF ? (
+                <Spinner className="mr-2 h-4 w-4" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Download PDF
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          {reportCardLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : reportCard && reportCard.exams.length > 0 ? (
+            <div className="space-y-4">
+              {/* Summary Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <StatCard
+                  label="Total Exams"
+                  value={reportCard.exams.length}
+                  icon={<BookOpen className="h-4 w-4" />}
+                />
+                <StatCard
+                  label="Passed"
+                  value={reportCard.exams.filter((e) => e.isPassed).length}
+                  variant="success"
+                />
+                <StatCard
+                  label="Failed"
+                  value={reportCard.exams.filter((e) => e.marksObtained !== null && !e.isPassed).length}
+                  variant="error"
+                />
+                <StatCard
+                  label="Average"
+                  value={calculateAverage(reportCard.exams)}
+                  suffix="%"
+                />
+              </div>
+
+              {/* Results Table */}
+              <div className="overflow-x-auto rounded-lg border border-border-subtle">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface-elevated">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium text-text-muted">Date</th>
+                      <th className="px-4 py-3 text-left font-medium text-text-muted">Exam</th>
+                      <th className="px-4 py-3 text-left font-medium text-text-muted">Subject</th>
+                      <th className="px-4 py-3 text-left font-medium text-text-muted">Type</th>
+                      <th className="px-4 py-3 text-center font-medium text-text-muted">Marks</th>
+                      <th className="px-4 py-3 text-center font-medium text-text-muted">Grade</th>
+                      <th className="px-4 py-3 text-center font-medium text-text-muted">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-subtle">
+                    {reportCard.exams.map((exam) => (
+                      <tr key={exam.examId} className="hover:bg-surface-hover">
+                        <td className="px-4 py-3 text-text-secondary">
+                          {formatDate(exam.examDate)}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-text-primary">
+                          {exam.examName}
+                        </td>
+                        <td className="px-4 py-3 text-text-secondary">
+                          {exam.subjectName}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="default">{formatExamType(exam.examType)}</Badge>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {exam.marksObtained !== null ? (
+                            <span className="font-medium">
+                              {exam.marksObtained}/{exam.totalMarks}
+                            </span>
+                          ) : (
+                            <span className="text-text-muted">AB</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Badge
+                            variant={
+                              exam.marksObtained === null
+                                ? "default"
+                                : exam.isPassed
+                                ? "success"
+                                : "destructive"
+                            }
+                          >
+                            {exam.grade}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {exam.marksObtained === null ? (
+                            <Badge variant="default">Absent</Badge>
+                          ) : exam.isPassed ? (
+                            <Badge variant="success">Pass</Badge>
+                          ) : (
+                            <Badge variant="destructive">Fail</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-text-muted">
+              <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p>No exam results available yet.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -308,4 +508,68 @@ function formatDate(dateString: string): string {
     month: "short",
     day: "numeric",
   });
+}
+
+/**
+ * Format exam type for display
+ */
+function formatExamType(type: ExamType): string {
+  const types: Record<ExamType, string> = {
+    unit_test: "Unit Test",
+    mid_term: "Mid-Term",
+    final: "Final",
+    practical: "Practical",
+    assignment: "Assignment",
+  };
+  return types[type] || type;
+}
+
+/**
+ * Calculate average percentage from exam results
+ */
+function calculateAverage(exams: { marksObtained: number | null; totalMarks: number }[]): number {
+  const scoredExams = exams.filter((e) => e.marksObtained !== null);
+  if (scoredExams.length === 0) return 0;
+
+  const totalObtained = scoredExams.reduce((sum, e) => sum + (e.marksObtained || 0), 0);
+  const totalMax = scoredExams.reduce((sum, e) => sum + e.totalMarks, 0);
+
+  return totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
+}
+
+/**
+ * Stat card component for report card summary
+ */
+function StatCard({
+  label,
+  value,
+  suffix,
+  icon,
+  variant,
+}: {
+  label: string;
+  value: number;
+  suffix?: string;
+  icon?: React.ReactNode;
+  variant?: "success" | "error";
+}) {
+  const colorClass =
+    variant === "success"
+      ? "text-green-600"
+      : variant === "error"
+      ? "text-red-600"
+      : "text-text-primary";
+
+  return (
+    <div className="rounded-lg border border-border-subtle p-3 bg-surface-elevated">
+      <div className="flex items-center gap-2 text-text-muted text-xs mb-1">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className={`text-xl font-semibold ${colorClass}`}>
+        {value}
+        {suffix}
+      </div>
+    </div>
+  );
 }

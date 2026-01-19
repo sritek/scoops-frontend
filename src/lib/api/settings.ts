@@ -26,6 +26,14 @@ export interface Organization {
   phone: string | null;
   email: string | null;
   address: string | null;
+  // Notification settings
+  notificationsEnabled: boolean;
+  feeOverdueCheckTime: string;
+  feeReminderDays: number;
+  birthdayNotifications: boolean;
+  attendanceBufferMinutes: number;
+  // Feature flags
+  jobsDashboardEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -40,11 +48,21 @@ export interface UpdateOrganizationInput {
   phone?: string | null;
   email?: string | null;
   address?: string | null;
+  // Notification settings
+  notificationsEnabled?: boolean;
+  feeOverdueCheckTime?: string;
+  feeReminderDays?: number;
+  birthdayNotifications?: boolean;
+  attendanceBufferMinutes?: number;
+  // Feature flags
+  jobsDashboardEnabled?: boolean;
 }
+
+export type TemplateType = "absent" | "fee_due" | "fee_paid" | "fee_overdue" | "fee_reminder" | "birthday";
 
 export interface MessageTemplate {
   id: string;
-  type: "absent" | "fee_due" | "fee_paid";
+  type: TemplateType;
   name: string | null;
   content: string;
   isActive: boolean;
@@ -59,7 +77,7 @@ export interface UpdateTemplateInput {
 }
 
 export interface CreateTemplateInput {
-  type: "absent" | "fee_due" | "fee_paid";
+  type: TemplateType;
   name: string;
   content: string;
   isActive?: boolean;

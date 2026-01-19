@@ -82,19 +82,6 @@ export {
 export { Badge, badgeVariants } from "./badge";
 export type { BadgeProps } from "./badge";
 
-// Toast
-export {
-  ToastProvider,
-  ToastViewport,
-  Toast,
-  ToastTitle,
-  ToastDescription,
-  ToastClose,
-  ToastAction,
-  toastVariants,
-} from "./toast";
-export type { ToastProps, ToastActionElement } from "./toast";
-
 // Spinner
 export { Spinner, PageLoader, spinnerSizes } from "./spinner";
 export type { SpinnerProps } from "./spinner";
@@ -141,3 +128,41 @@ export type { PhotoUploadProps, AvatarProps } from "./photo-upload";
 
 // Theme Toggle
 export { ThemeToggle, useAppTheme } from "./theme-toggle";
+
+// Command (cmdk wrapper)
+export {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandSeparator,
+  CommandLoading,
+} from "./command";
+
+// Popover
+export {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverAnchor,
+} from "./popover";
+
+// User Autocomplete (for large datasets with server-side search)
+export { UserAutocomplete } from "./user-autocomplete";
+export type { UserAutocompleteProps } from "./user-autocomplete";
+
+// Searchable Select (for small datasets with client-side filtering)
+export { SearchableSelect } from "./searchable-select";
+export type {
+  SearchableSelectProps,
+  SearchableSelectOption,
+} from "./searchable-select";
+
+// Student Search Select (for selecting students with batch filtering)
+export { StudentSearchSelect } from "./student-search-select";
+export type { StudentSearchSelectProps } from "./student-search-select";
+
+// Tabs
+export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";

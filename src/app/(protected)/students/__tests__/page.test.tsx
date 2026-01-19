@@ -62,6 +62,7 @@ const sampleStudents: Student[] = [
         phone: "9876543210",
         photoUrl: null,
         relation: "mother",
+        isPrimaryContact: true,
       },
     ],
     createdAt: new Date().toISOString(),

@@ -32,6 +32,7 @@ import {
   PhotoUpload,
   Label,
 } from "@/components/ui";
+import { useBatches } from "@/lib/api";
 
 /**
  * Add Student Page
@@ -44,6 +45,8 @@ import {
  */
 export default function AddStudentPage() {
   const router = useRouter();
+  const { data: batchesData } = useBatches({ limit: 100 });
+  const batches = batchesData?.data ?? [];
   const {
     mutate: createStudent,
     isPending,
@@ -54,6 +57,8 @@ export default function AddStudentPage() {
     register,
     handleSubmit,
     control,
+    getValues,
+    setValue,
     formState: { errors },
   } = useForm<StudentFormData>({
     resolver: zodResolver(studentFormSchema),
@@ -65,6 +70,24 @@ export default function AddStudentPage() {
     control,
     name: "parents",
   });
+
+  // Handle setting primary contact (radio behavior - only one can be selected)
+  const handleSetPrimaryContact = (selectedIndex: number) => {
+    const currentParents = getValues("parents") || [];
+    currentParents.forEach((_, idx) => {
+      setValue(`parents.${idx}.isPrimaryContact`, idx === selectedIndex);
+    });
+  };
+
+  // Add parent with auto-select first as primary contact
+  const handleAddParent = () => {
+    const currentParents = getValues("parents") || [];
+    const isFirstParent = currentParents.length === 0;
+    append({
+      ...defaultParentValues,
+      isPrimaryContact: isFirstParent, // Auto-select first parent as primary
+    });
+  };
 
   const onSubmit = (data: StudentFormData) => {
     createStudent(data, {
@@ -172,7 +195,10 @@ export default function AddStudentPage() {
                   name="gender"
                   control={control}
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value ?? ""}
+                      onValueChange={field.onChange}
+                    >
                       <SelectTrigger id="gender">
                         <SelectValue placeholder="Select gender" />
                       </SelectTrigger>
@@ -208,7 +234,10 @@ export default function AddStudentPage() {
                   name="category"
                   control={control}
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value ?? ""}
+                      onValueChange={field.onChange}
+                    >
                       <SelectTrigger id="category">
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
@@ -238,6 +267,35 @@ export default function AddStudentPage() {
                 />
               </FormField>
             </div>
+
+            {/* Batch Selection */}
+            <FormField
+              id="batchId"
+              label="Batch"
+              error={errors.batchId?.message}
+            >
+              <Controller
+                name="batchId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value ?? ""}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger id="batchId">
+                      <SelectValue placeholder="Select batch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {batches.map((batch) => (
+                        <SelectItem key={batch.id} value={batch.id}>
+                          {batch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FormField>
 
             {/* CWSN checkbox */}
             <div className="flex items-center gap-3">
@@ -270,7 +328,7 @@ export default function AddStudentPage() {
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => append(defaultParentValues)}
+              onClick={handleAddParent}
             >
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
               Add Parent
@@ -283,17 +341,26 @@ export default function AddStudentPage() {
                 guardian details.
               </p>
             ) : (
-              fields.map((field, index) => (
-                <ParentFieldGroup
-                  key={field.id}
-                  index={index}
-                  register={register}
-                  control={control}
-                  errors={errors}
-                  onRemove={() => remove(index)}
-                  canRemove={fields.length > 0}
-                />
-              ))
+              <>
+                {fields.map((field, index) => (
+                  <ParentFieldGroup
+                    key={field.id}
+                    index={index}
+                    register={register}
+                    control={control}
+                    errors={errors}
+                    onRemove={() => remove(index)}
+                    canRemove={fields.length > 0}
+                    onSetPrimaryContact={handleSetPrimaryContact}
+                  />
+                ))}
+                {/* Validation error for primary contact */}
+                {errors.parents?.message && (
+                  <p className="text-sm text-error mt-2">
+                    {errors.parents.message}
+                  </p>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -322,6 +389,7 @@ interface ParentFieldGroupProps {
   errors: ReturnType<typeof useForm<StudentFormData>>["formState"]["errors"];
   onRemove: () => void;
   canRemove: boolean;
+  onSetPrimaryContact: (index: number) => void;
 }
 
 function ParentFieldGroup({
@@ -331,6 +399,7 @@ function ParentFieldGroup({
   errors,
   onRemove,
   canRemove,
+  onSetPrimaryContact,
 }: ParentFieldGroupProps) {
   const parentErrors = errors.parents?.[index];
 
@@ -440,6 +509,34 @@ function ParentFieldGroup({
             )}
           />
         </FormField>
+      </div>
+
+      {/* Primary Contact */}
+      <div className="flex items-center gap-2 pt-2 border-t border-border-subtle">
+        <Controller
+          name={`parents.${index}.isPrimaryContact`}
+          control={control}
+          render={({ field }) => (
+            <Checkbox
+              id={`parents.${index}.isPrimaryContact`}
+              checked={field.value}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  // Radio behavior: selecting this one deselects others
+                  onSetPrimaryContact(index);
+                }
+                // Note: We don't allow unchecking directly - user must select another parent
+                // This ensures exactly one primary contact is always selected
+              }}
+            />
+          )}
+        />
+        <label
+          htmlFor={`parents.${index}.isPrimaryContact`}
+          className="text-sm text-text-primary cursor-pointer"
+        >
+          Primary contact for messages
+        </label>
       </div>
     </div>
   );

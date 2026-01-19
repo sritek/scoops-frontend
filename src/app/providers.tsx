@@ -3,6 +3,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { useState, type ReactNode } from "react";
+import { Toaster } from "sonner";
 import { createQueryClient } from "@/lib/api/query-client";
 import { AuthProvider } from "@/lib/auth";
 
@@ -42,6 +43,17 @@ export function Providers({ children }: ProvidersProps) {
         disableTransitionOnChange
       >
         <AuthProvider>{children}</AuthProvider>
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            className: "font-sans",
+            style: {
+              background: "var(--bg-surface)",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border-subtle)",
+            },
+          }}
+        />
       </ThemeProvider>
     </QueryClientProvider>
   );

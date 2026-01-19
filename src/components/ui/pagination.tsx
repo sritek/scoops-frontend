@@ -4,11 +4,18 @@ import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import type { PaginationMeta } from "@/types";
 
+/** Default options for rows per page selector */
+const DEFAULT_LIMIT_OPTIONS = [10, 20, 50, 100];
+
 export interface PaginationProps {
   /** Pagination metadata from API response */
   pagination: PaginationMeta;
   /** Callback when page changes */
   onPageChange: (page: number) => void;
+  /** Callback when rows per page changes (enables the selector when provided) */
+  onLimitChange?: (limit: number) => void;
+  /** Options for rows per page selector */
+  limitOptions?: number[];
   /** Additional className */
   className?: string;
   /** Show "Showing X-Y of Z" text */
@@ -33,6 +40,8 @@ export interface PaginationProps {
 export function Pagination({
   pagination,
   onPageChange,
+  onLimitChange,
+  limitOptions = DEFAULT_LIMIT_OPTIONS,
   className,
   showInfo = true,
 }: PaginationProps) {
@@ -46,14 +55,49 @@ export function Pagination({
   const pageNumbers = getPageNumbers(page, totalPages);
 
   if (totalPages <= 1) {
-    // Don't render pagination for single page
-    return showInfo && total > 0 ? (
-      <div className={cn("flex items-center justify-center py-3", className)}>
-        <p className="text-sm text-text-muted">
-          {total} {total === 1 ? "item" : "items"}
-        </p>
+    // Show minimal view for single page (item count + optional rows per page selector)
+    if (!showInfo && !onLimitChange) return null;
+    if (total === 0 && !onLimitChange) return null;
+
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-center gap-4 py-3",
+          onLimitChange && "sm:justify-between",
+          className
+        )}
+      >
+        {showInfo && total > 0 && (
+          <p className="text-sm text-text-muted">
+            {total} {total === 1 ? "item" : "items"}
+          </p>
+        )}
+
+        {onLimitChange && (
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="rows-per-page-single"
+              className="text-sm text-text-muted hidden sm:inline"
+            >
+              Rows per page:
+            </label>
+            <select
+              id="rows-per-page-single"
+              value={limit}
+              onChange={(e) => onLimitChange(Number(e.target.value))}
+              className="h-9 rounded-lg border border-border-subtle bg-bg-surface px-2 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+              aria-label="Rows per page"
+            >
+              {limitOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
-    ) : null;
+    );
   }
 
   return (
@@ -63,16 +107,43 @@ export function Pagination({
         className
       )}
     >
-      {/* Info text */}
-      {showInfo && (
-        <p
-          className="text-sm text-text-muted text-center sm:text-left"
-          role="status"
-          aria-live="polite"
-        >
-          Showing {start}-{end} of {total}
-        </p>
-      )}
+      {/* Info text and rows per page selector */}
+      <div className="flex items-center gap-4 justify-center sm:justify-start">
+        {showInfo && (
+          <p
+            className="text-sm text-text-muted"
+            role="status"
+            aria-live="polite"
+          >
+            Showing {start}-{end} of {total}
+          </p>
+        )}
+
+        {/* Rows per page selector */}
+        {onLimitChange && (
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="rows-per-page"
+              className="text-sm text-text-muted hidden sm:inline"
+            >
+              Rows per page:
+            </label>
+            <select
+              id="rows-per-page"
+              value={limit}
+              onChange={(e) => onLimitChange(Number(e.target.value))}
+              className="h-9 rounded-lg border border-border-subtle bg-bg-surface px-2 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+              aria-label="Rows per page"
+            >
+              {limitOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
 
       {/* Pagination controls */}
       <nav

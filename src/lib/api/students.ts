@@ -1,6 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
-import type { Student, CreateStudentInput, UpdateStudentInput } from "@/types/student";
+import type {
+  Student,
+  CreateStudentInput,
+  UpdateStudentInput,
+} from "@/types/student";
 import type { PaginatedResponse, PaginationParams } from "@/types";
 
 /**
@@ -62,11 +66,12 @@ async function createStudent(data: CreateStudentInput): Promise<Student> {
     ...data,
     batchId: data.batchId || undefined,
     // Filter out empty parent entries
-    parents: data.parents?.filter(
-      (p) => p.firstName && p.lastName && p.phone
-    ),
+    parents: data.parents?.filter((p) => p.firstName && p.lastName && p.phone),
   };
-  const response = await apiClient.post<{ data: Student }>("/students", payload);
+  const response = await apiClient.post<{ data: Student }>(
+    "/students",
+    payload
+  );
   return response.data;
 }
 
@@ -84,11 +89,12 @@ async function updateStudent({
     ...data,
     batchId: data.batchId || undefined,
     // Filter out empty parent entries
-    parents: data.parents?.filter(
-      (p) => p.firstName && p.lastName && p.phone
-    ),
+    parents: data.parents?.filter((p) => p.firstName && p.lastName && p.phone),
   };
-  const response = await apiClient.put<{ data: Student }>(`/students/${id}`, payload);
+  const response = await apiClient.put<{ data: Student }>(
+    `/students/${id}`,
+    payload
+  );
   return response.data;
 }
 

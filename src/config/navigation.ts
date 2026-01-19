@@ -6,6 +6,12 @@ import {
   IndianRupee,
   UserCog,
   Building2,
+  Briefcase,
+  FileText,
+  GraduationCap,
+  MessageSquare,
+  AlertTriangle,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/types";
@@ -58,7 +64,7 @@ export const navigationItems: NavItem[] = [
     href: "/attendance",
     label: "Attendance",
     icon: ClipboardCheck,
-    permission: "ATTENDANCE_MARK",
+    permission: "ATTENDANCE_VIEW", // Accounts won't have this - attendance hidden for them
   },
   {
     href: "/fees",
@@ -67,9 +73,33 @@ export const navigationItems: NavItem[] = [
     permission: "FEE_VIEW",
   },
   {
+    href: "/exams",
+    label: "Exams",
+    icon: GraduationCap,
+    permission: "STUDENT_VIEW",
+  },
+  {
+    href: "/messages",
+    label: "Messages",
+    icon: MessageSquare,
+    permission: "DASHBOARD_VIEW",
+  },
+  {
+    href: "/complaints",
+    label: "Complaints",
+    icon: AlertTriangle,
+    permission: "DASHBOARD_VIEW",
+  },
+  {
     href: "/users",
     label: "Users",
     icon: UserCog,
+    permission: "USER_MANAGE",
+  },
+  {
+    href: "/staff",
+    label: "Staff",
+    icon: Briefcase,
     permission: "USER_MANAGE",
   },
   {
@@ -78,6 +108,19 @@ export const navigationItems: NavItem[] = [
     icon: Building2,
     permission: "SETTINGS_MANAGE",
   },
+  {
+    href: "/analytics",
+    label: "Analytics",
+    icon: BarChart3,
+    permission: "SETTINGS_MANAGE",
+  },
+  {
+    href: "/reports",
+    label: "Reports",
+    icon: FileText,
+    permission: "DASHBOARD_VIEW",
+  },
+  // Settings and Jobs are accessible via the user dropdown menu in the header
 ];
 
 /**

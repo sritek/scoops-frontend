@@ -82,7 +82,8 @@ const SelectScrollDownButton = React.forwardRef<
     <ChevronDown className="h-4 w-4" aria-hidden="true" />
   </SelectPrimitive.ScrollDownButton>
 ));
-SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName;
+SelectScrollDownButton.displayName =
+  SelectPrimitive.ScrollDownButton.displayName;
 
 /**
  * Select Content (dropdown panel)
@@ -96,7 +97,7 @@ const SelectContent = React.forwardRef<
       ref={ref}
       className={cn(
         // Base styles
-        "relative z-50 max-h-96 min-w-[8rem] overflow-hidden",
+        "relative z-50 max-h-96 min-w-32 overflow-hidden",
         "rounded-lg border border-border-subtle",
         "bg-bg-surface text-text-primary",
         "shadow-md",
@@ -138,10 +139,7 @@ const SelectLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn(
-      "px-2 py-1.5 text-sm font-medium text-text-muted",
-      className
-    )}
+    className={cn("px-2 py-1.5 text-sm font-medium text-text-muted", className)}
     {...props}
   />
 ));

@@ -74,7 +74,78 @@ export interface PaymentModeStats {
 }
 
 export interface DashboardData {
-  attendance: AttendanceSummary;
+  /** Attendance summary (null for accounts role) */
+  attendance: AttendanceSummary | null;
+  /** Pending fees summary (always present) */
   pendingFees: PendingFeesSummary;
-  feesCollected: FeesCollectedToday;
+  /** Fees collected today (null for teacher role) */
+  feesCollected: FeesCollectedToday | null;
+}
+
+// =====================
+// Enhanced Dashboard Types (Phase 2A)
+// =====================
+
+export interface ActionItem {
+  type: "attendance_pending" | "fees_overdue" | "birthday" | "staff_unmarked";
+  priority: "high" | "medium" | "low";
+  title: string;
+  description: string;
+  actionUrl?: string;
+  count?: number;
+}
+
+export interface AttendanceTrendItem {
+  date: string;
+  present: number;
+  absent: number;
+  percentage: number;
+}
+
+export interface FeeCollectionTrendItem {
+  date: string;
+  amount: number;
+  count: number;
+}
+
+export interface UpcomingBirthday {
+  id: string;
+  name: string;
+  date: string;
+  batchName: string | null;
+  daysUntil: number;
+}
+
+export interface StaffAttendanceSummary {
+  totalStaff: number;
+  present: number;
+  absent: number;
+  halfDay: number;
+  leave: number;
+  notMarked: number;
+}
+
+export interface EnhancedDashboardData {
+  /** Attendance summary (null for accounts role) */
+  attendance: AttendanceSummary | null;
+  /** Pending fees summary */
+  pendingFees: PendingFeesSummary | null;
+  /** Fees collected today */
+  feesCollected: FeesCollectedToday | null;
+  /** Action items / todos */
+  actionItems: ActionItem[];
+  /** Trends data */
+  trends?: {
+    attendance?: AttendanceTrendItem[];
+    feeCollection?: FeeCollectionTrendItem[];
+  };
+  /** Upcoming birthdays */
+  upcomingBirthdays?: UpcomingBirthday[];
+  /** Staff attendance summary (admin only) */
+  staffAttendance?: StaffAttendanceSummary;
+  /** Teacher's batch info (teacher only) */
+  teacherBatch?: {
+    id: string;
+    name: string;
+  } | null;
 }

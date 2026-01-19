@@ -16,6 +16,7 @@ import {
   Eye,
   TrendingUp,
   Filter,
+  Lock,
 } from "lucide-react";
 import { useBatches } from "@/lib/api/batches";
 import {
@@ -54,6 +55,8 @@ import type {
   AttendanceHistoryItem,
 } from "@/types/attendance";
 import { PAGINATION_DEFAULTS } from "@/types";
+import { usePermissions } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 
 /**
  * Get today's date in YYYY-MM-DD format
@@ -185,10 +188,23 @@ function DashboardTab({
   onMarkAttendance: (batchId: string | null) => void;
 }) {
   const { data: summary, isLoading, error } = useAttendanceSummary();
+  const { can } = usePermissions();
+  const { user } = useAuth();
+  const canMarkAttendance = can("ATTENDANCE_MARK");
+  const isTeacher = user?.role?.toLowerCase() === "teacher";
+  
+  // Get teacher's batch (for checking if they can mark a specific batch)
+  const { data: batchesData } = useBatches();
+
+  const teacherBatchIds = (!isTeacher || !user?.id || !batchesData?.data)
+    ? []
+    : batchesData.data.filter(b => b.classTeacherId === user.id).map(b => b.id);
 
   if (isLoading) {
     return <DashboardSkeleton />;
   }
+
+
 
   if (error) {
     return (
@@ -225,7 +241,6 @@ function DashboardTab({
       ? Math.round((summary.totalMarked / summary.totalActiveStudents) * 100)
       : 0;
 
-  console.log("summary", summary);
 
   return (
     <div className="space-y-6">
@@ -339,33 +354,45 @@ function DashboardTab({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {summary.pendingBatches?.map((batch) => (
-              <div
-                key={batch.batchId}
-                className="flex items-center justify-between rounded-lg border border-border-subtle bg-bg-app p-4"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning/10">
-                    <Users className="h-5 w-5 text-warning" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-text-primary">
-                      {batch.batchName}
-                    </p>
-                    <p className="text-sm text-text-muted">
-                      {batch.studentCount} students
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => onMarkAttendance(batch.batchId)}
+            {summary.pendingBatches?.map((batch) => {
+              // Teachers can only mark their own batch
+              const canMark = !isTeacher || teacherBatchIds.includes(batch.batchId);
+              
+              return (
+                <div
+                  key={batch.batchId}
+                  className="flex items-center justify-between rounded-lg border border-border-subtle bg-bg-app p-4"
                 >
-                  Mark Now
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning/10">
+                      <Users className="h-5 w-5 text-warning" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-text-primary">
+                        {batch.batchName}
+                      </p>
+                      <p className="text-sm text-text-muted">
+                        {batch.studentCount} students
+                      </p>
+                    </div>
+                  </div>
+                  {canMark ? (
+                    <Button
+                      size="sm"
+                      onClick={() => onMarkAttendance(batch.batchId)}
+                    >
+                      Mark Now
+                      <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Badge variant="default" className="text-xs">
+                      <Lock className="mr-1 h-3 w-3" />
+                      Not Your Batch
+                    </Badge>
+                  )}
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -476,6 +503,12 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const todayDate = getTodayDate();
 
+  // Permission and user info
+  const { can } = usePermissions();
+  const { user } = useAuth();
+  const canMarkAttendance = can("ATTENDANCE_MARK");
+  const isTeacher = user?.role?.toLowerCase() === "teacher";
+
   // Local state for attendance status changes
   const [localStatus, setLocalStatus] = useState<
     Record<string, AttendanceStatus | null>
@@ -483,7 +516,16 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
 
   // Fetch batches
   const { data: batchesData, isLoading: batchesLoading } = useBatches();
-  const batches = batchesData?.data ?? [];
+  const allBatches = useMemo(() => batchesData?.data ?? [], [batchesData?.data]);
+  
+  // For teachers, filter to only show their assigned batch
+  // For admins, show all batches
+  const batches = useMemo(() => {
+    if (isTeacher && user) {
+      return allBatches.filter(batch => batch.classTeacherId === user.id);
+    }
+    return allBatches;
+  }, [allBatches, isTeacher, user]);
 
   // Fetch attendance for selected batch
   const {
@@ -657,6 +699,22 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
               </Badge>
             </div>
           </div>
+
+          {/* Teacher notice */}
+          {isTeacher && batches.length === 1 && (
+            <div className="flex items-center gap-2 rounded-lg bg-primary-100 p-3 text-sm text-primary-600 dark:bg-primary-900/30">
+              <Lock className="h-4 w-4" />
+              <span>You can only mark attendance for your assigned batch.</span>
+            </div>
+          )}
+
+          {/* No assigned batch notice for teachers */}
+          {isTeacher && batches.length === 0 && !batchesLoading && (
+            <div className="flex items-center gap-2 rounded-lg bg-warning/10 p-3 text-sm text-warning">
+              <AlertCircle className="h-4 w-4" />
+              <span>You are not assigned as class teacher to any batch. Contact admin to assign you a batch.</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -960,6 +1018,8 @@ function HistoryTab() {
 
   const history = historyData?.data ?? [];
   const pagination = historyData?.pagination;
+
+  console.log('historyData', historyData)
 
   const handleFilterChange = useCallback(() => {
     setCurrentPage(1);

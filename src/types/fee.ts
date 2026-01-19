@@ -108,3 +108,63 @@ export interface RecordPaymentInput {
   paymentMode: PaymentMode;
   notes?: string;
 }
+
+// =====================
+// Receipt Types
+// =====================
+
+/**
+ * Receipt entity from API
+ */
+export interface Receipt {
+  id: string;
+  receiptNumber: string;
+  amount: number;
+  paymentMode: PaymentMode;
+  generatedAt: string;
+  student: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    fullName: string;
+  };
+  feePlan: {
+    id: string;
+    name: string;
+  };
+  receivedBy: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    fullName: string;
+  };
+}
+
+/**
+ * Detailed receipt with organization info
+ */
+export interface ReceiptDetails extends Receipt {
+  organization: {
+    name: string;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+    logoUrl: string | null;
+  };
+  student: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    fullName: string;
+    batch: {
+      id: string;
+      name: string;
+    } | null;
+  };
+  studentFee: {
+    totalAmount: number;
+    paidAmount: number;
+    dueDate: string;
+    status: FeeStatus;
+  };
+}

@@ -45,6 +45,7 @@ export type Permission =
   | "STUDENT_VIEW"
   | "STUDENT_EDIT"
   // Attendance
+  | "ATTENDANCE_VIEW"
   | "ATTENDANCE_MARK"
   // Fees
   | "FEE_VIEW"
@@ -93,8 +94,21 @@ export interface PaginationParams {
  */
 export const PAGINATION_DEFAULTS = {
   PAGE: 1,
-  LIMIT: 10,
+  LIMIT: 20,
 } as const;
+
+// Re-export types from dedicated files
+export * from "./batch";
+export * from "./session";
+export * from "./subject";
+export * from "./schedule";
+export * from "./staff";
+export * from "./payment";
+export * from "./report";
+export * from "./exam";
+export * from "./messaging";
+export * from "./complaint";
+export * from "./analytics";
 
 // Entity Types - Stubs for Phase 1
 export interface Student {
@@ -105,18 +119,6 @@ export interface Student {
   parentPhone?: string;
   batchId: string;
   branchId: string;
-  status: "ACTIVE" | "INACTIVE";
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Batch {
-  id: string;
-  name: string;
-  description?: string;
-  branchId: string;
-  teacherId?: string;
-  studentCount: number;
   status: "ACTIVE" | "INACTIVE";
   createdAt: string;
   updatedAt: string;

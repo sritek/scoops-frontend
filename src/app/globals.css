@@ -300,3 +300,127 @@ body {
      --------------------------------------------------------------------------- */
   --ring: #3b82f6; /* blue-500 - Matches dark primary */
 }
+
+/* =============================================================================
+   9. PRINT STYLES
+   Optimized for printing weekly schedules
+   ============================================================================= */
+
+@media print {
+  /* Reset page margins for better use of paper */
+  @page {
+    margin: 1cm;
+    size: landscape;
+  }
+
+  /* Force light mode colors when printing */
+  :root {
+    --bg-app: #ffffff;
+    --bg-surface: #ffffff;
+    --text-primary: #000000;
+    --text-muted: #374151;
+    --border-subtle: #d1d5db;
+    --primary-100: #dbeafe;
+    --primary-600: #2563eb;
+    --warning: #d97706;
+  }
+
+  /* Hide UI elements not needed for print (Tailwind's print:hidden handles .print\:hidden) */
+  [data-sidebar],
+  nav,
+  header,
+  aside,
+  button:not(.print-visible),
+  .dialog-overlay,
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  /* Make body full width */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Reset main content area */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  /* Schedule grid print styles */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 11px !important;
+  }
+
+  th,
+  td {
+    border: 1px solid #9ca3af !important;
+    padding: 6px 8px !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+
+  th {
+    background-color: #f3f4f6 !important;
+    font-weight: 600 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Break rows styling */
+  tr[class*="bg-warning"] {
+    background-color: #fef3c7 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Subject badges */
+  .bg-primary-100 {
+    background-color: #dbeafe !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Card styles */
+  .card,
+  [class*="Card"] {
+    box-shadow: none !important;
+    border: 1px solid #d1d5db !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Print header */
+  h1 {
+    font-size: 18px !important;
+    margin-bottom: 12px !important;
+  }
+
+  /* Ensure colors print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Remove hover/focus styles */
+  *:hover,
+  *:focus {
+    background-color: inherit !important;
+  }
+
+  /* Links should show URL */
+  a[href]::after {
+    content: none;
+  }
+
+  /* Hide scrollbars */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+}

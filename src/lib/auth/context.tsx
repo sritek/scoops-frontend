@@ -8,6 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { User, AuthState } from "@/types";
 
@@ -93,6 +94,7 @@ function clearAuthData(): void {
  * For permission checks, use the usePermissions hook instead.
  */
 export function AuthProvider({ children }: AuthProviderProps) {
+  const queryClient = useQueryClient();
   const [state, setState] = useState<AuthState>({
     user: null,
     isLoading: true,
@@ -257,14 +259,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Sign out handler
   const handleSignOut = useCallback(async () => {
+    // Clear localStorage
     clearAuthData();
+    // Clear all cached queries to prevent stale data when switching users
+    queryClient.clear();
+    // Reset auth state
     setState({
       user: null,
       isLoading: false,
       isAuthenticated: false,
       error: null,
     });
-  }, []);
+  }, [queryClient]);
 
   // Change password handler
   const changePassword = useCallback(

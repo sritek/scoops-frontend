@@ -38,6 +38,13 @@ async function createBatch(data: CreateBatchInput): Promise<Batch> {
 }
 
 /**
+ * Fetch a single batch by ID
+ */
+async function fetchBatch(id: string): Promise<{ data: Batch }> {
+  return apiClient.get<{ data: Batch }>(`/batches/${id}`);
+}
+
+/**
  * Update an existing batch
  */
 async function updateBatch({
@@ -63,6 +70,22 @@ export function useBatches(params: PaginationParams = {}) {
   return useQuery({
     queryKey: batchesKeys.list(params),
     queryFn: () => fetchBatches(params),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+}
+
+/**
+ * Hook to fetch a single batch by ID
+ *
+ * @example
+ * const { data, isLoading, error } = useBatch("batch-id");
+ * // data.data = Batch
+ */
+export function useBatch(id: string) {
+  return useQuery({
+    queryKey: batchesKeys.detail(id),
+    queryFn: () => fetchBatch(id),
+    enabled: !!id,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }

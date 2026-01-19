@@ -37,6 +37,10 @@ export interface DataTableProps<TData, TValue> {
   serverPagination?: PaginationMeta;
   /** Callback when page changes (required when paginationMode="server") */
   onPageChange?: (page: number) => void;
+  /** Callback when rows per page changes (server mode - enables the selector) */
+  onLimitChange?: (limit: number) => void;
+  /** Options for rows per page selector (server mode) */
+  limitOptions?: number[];
   /** Loading state - shows skeleton when true */
   isLoading?: boolean;
   /** Number of rows per page for client-side pagination (default: 10) */
@@ -83,6 +87,8 @@ export function DataTable<TData, TValue>({
   paginationMode = "server",
   serverPagination,
   onPageChange,
+  onLimitChange,
+  limitOptions,
   isLoading = false,
   pageSize = 10,
   emptyMessage = "No data found.",
@@ -182,7 +188,12 @@ export function DataTable<TData, TValue>({
       {/* Pagination Controls */}
       {paginationMode === "server" && serverPagination && onPageChange ? (
         <div className="border-t border-border-subtle px-4">
-          <Pagination pagination={serverPagination} onPageChange={onPageChange} />
+          <Pagination
+            pagination={serverPagination}
+            onPageChange={onPageChange}
+            onLimitChange={onLimitChange}
+            limitOptions={limitOptions}
+          />
         </div>
       ) : paginationMode === "client" ? (
         <ClientPagination
