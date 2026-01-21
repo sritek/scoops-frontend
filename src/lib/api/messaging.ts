@@ -145,13 +145,85 @@ export function useSendMessage() {
       conversationId: string;
       input: SendMessageInput;
     }) => sendMessage(conversationId, input),
-    onSuccess: (_, { conversationId }) => {
-      queryClient.invalidateQueries({
+    onMutate: async ({ conversationId, input }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({
         queryKey: messagingKeys.conversationDetail(conversationId),
       });
-      queryClient.invalidateQueries({
-        queryKey: messagingKeys.conversations(),
-      });
+
+      // Snapshot current data for rollback
+      const previousData = queryClient.getQueryData<ConversationDetail>(
+        messagingKeys.conversationDetail(conversationId)
+      );
+
+      // Optimistically add the message
+      const optimisticMessage: Message = {
+        id: `temp-${Date.now()}`,
+        content: input.content,
+        attachmentUrl: input.attachmentUrl ?? null,
+        createdAt: new Date().toISOString(),
+        senderName: "You",
+        isOwnMessage: true,
+      };
+
+      queryClient.setQueryData<ConversationDetail>(
+        messagingKeys.conversationDetail(conversationId),
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            messages: [...old.messages, optimisticMessage],
+          };
+        }
+      );
+
+      return { previousData, conversationId };
+    },
+    onError: (err, { conversationId }, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        queryClient.setQueryData(
+          messagingKeys.conversationDetail(conversationId),
+          context.previousData
+        );
+      }
+    },
+    onSuccess: (newMessage, { conversationId }) => {
+      // Replace optimistic message with real one
+      queryClient.setQueryData<ConversationDetail>(
+        messagingKeys.conversationDetail(conversationId),
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            messages: old.messages.map((msg) =>
+              msg.id.startsWith("temp-") ? newMessage : msg
+            ),
+          };
+        }
+      );
+      // Update conversation list's lastMessage
+      queryClient.setQueryData<PaginatedResponse<Conversation>>(
+        messagingKeys.conversations(),
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: old.data.map((c) =>
+              c.id === conversationId
+                ? {
+                    ...c,
+                    lastMessage: {
+                      content: newMessage.content,
+                      createdAt: newMessage.createdAt,
+                    },
+                    updatedAt: newMessage.createdAt,
+                  }
+                : c
+            ),
+          };
+        }
+      );
     },
   });
 }

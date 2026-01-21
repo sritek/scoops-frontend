@@ -17,13 +17,16 @@ import {
   TrendingUp,
   Filter,
   Lock,
+  CalendarDays,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useBatches } from "@/lib/api/batches";
 import {
   useAttendance,
   useMarkAttendance,
   useAttendanceSummary,
   useAttendanceHistory,
+  attendanceKeys,
 } from "@/lib/api/attendance";
 import {
   Button,
@@ -48,11 +51,14 @@ import {
   DialogTitle,
   DialogDescription,
   Avatar,
+  LoadingOverlay,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type {
   AttendanceStatus,
   AttendanceHistoryItem,
+  StudentLeaveInfo,
+  AttendanceResponse,
 } from "@/types/attendance";
 import { PAGINATION_DEFAULTS } from "@/types";
 import { usePermissions } from "@/lib/hooks";
@@ -192,19 +198,38 @@ function DashboardTab({
   const { user } = useAuth();
   const canMarkAttendance = can("ATTENDANCE_MARK");
   const isTeacher = user?.role?.toLowerCase() === "teacher";
-  
+
   // Get teacher's batch (for checking if they can mark a specific batch)
   const { data: batchesData } = useBatches();
 
-  const teacherBatchIds = (!isTeacher || !user?.id || !batchesData?.data)
-    ? []
-    : batchesData.data.filter(b => b.classTeacherId === user.id).map(b => b.id);
+  // Get teacher's batch IDs for filtering
+  const teacherBatchIds = useMemo(() => {
+    if (
+      !isTeacher ||
+      !user ||
+      !user.id ||
+      !batchesData ||
+      !Array.isArray(batchesData.data)
+    )
+      return [];
+    return batchesData.data
+      .filter((b) => b.classTeacherId === user.id)
+      .map((b) => b.id);
+  }, [isTeacher, user, batchesData]);
+
+  // Filter pending batches for teachers - they should only see their own batches
+  const filteredPendingBatches = useMemo(() => {
+    if (!summary?.pendingBatches || !Array.isArray(summary.pendingBatches))
+      return [];
+    if (!isTeacher) return summary.pendingBatches;
+    return summary.pendingBatches.filter((batch) =>
+      teacherBatchIds.includes(batch.batchId)
+    );
+  }, [summary, isTeacher, teacherBatchIds]);
 
   if (isLoading) {
     return <DashboardSkeleton />;
   }
-
-
 
   if (error) {
     return (
@@ -240,7 +265,6 @@ function DashboardTab({
     summary.totalActiveStudents > 0
       ? Math.round((summary.totalMarked / summary.totalActiveStudents) * 100)
       : 0;
-
 
   return (
     <div className="space-y-6">
@@ -345,54 +369,42 @@ function DashboardTab({
       </div>
 
       {/* Pending Batches */}
-      {summary.pendingBatches?.length > 0 && (
+      {filteredPendingBatches.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <AlertCircle className="h-5 w-5 text-warning" />
-              Pending Batches ({summary.pendingBatches?.length})
+              Pending Batches ({filteredPendingBatches.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {summary.pendingBatches?.map((batch) => {
-              // Teachers can only mark their own batch
-              const canMark = !isTeacher || teacherBatchIds.includes(batch.batchId);
-              
-              return (
-                <div
-                  key={batch.batchId}
-                  className="flex items-center justify-between rounded-lg border border-border-subtle bg-bg-app p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning/10">
-                      <Users className="h-5 w-5 text-warning" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-text-primary">
-                        {batch.batchName}
-                      </p>
-                      <p className="text-sm text-text-muted">
-                        {batch.studentCount} students
-                      </p>
-                    </div>
+            {filteredPendingBatches.map((batch) => (
+              <div
+                key={batch.batchId}
+                className="flex items-center justify-between rounded-lg border border-border-subtle bg-bg-app p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning/10">
+                    <Users className="h-5 w-5 text-warning" />
                   </div>
-                  {canMark ? (
-                    <Button
-                      size="sm"
-                      onClick={() => onMarkAttendance(batch.batchId)}
-                    >
-                      Mark Now
-                      <ChevronRight className="ml-1 h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <Badge variant="default" className="text-xs">
-                      <Lock className="mr-1 h-3 w-3" />
-                      Not Your Batch
-                    </Badge>
-                  )}
+                  <div>
+                    <p className="font-medium text-text-primary">
+                      {batch.batchName}
+                    </p>
+                    <p className="text-sm text-text-muted">
+                      {batch.studentCount} students
+                    </p>
+                  </div>
                 </div>
-              );
-            })}
+                <Button
+                  size="sm"
+                  onClick={() => onMarkAttendance(batch.batchId)}
+                >
+                  Mark Now
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -456,7 +468,7 @@ function DashboardTab({
       )}
 
       {/* All Done State */}
-      {summary.pendingBatches?.length === 0 &&
+      {filteredPendingBatches.length === 0 &&
         summary.batchSummaries?.length === 0 && (
           <Card>
             <EmptyState
@@ -502,6 +514,7 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const todayDate = getTodayDate();
+  const queryClient = useQueryClient();
 
   // Permission and user info
   const { can } = usePermissions();
@@ -516,13 +529,16 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
 
   // Fetch batches
   const { data: batchesData, isLoading: batchesLoading } = useBatches();
-  const allBatches = useMemo(() => batchesData?.data ?? [], [batchesData?.data]);
-  
+  const allBatches = useMemo(
+    () => batchesData?.data ?? [],
+    [batchesData?.data]
+  );
+
   // For teachers, filter to only show their assigned batch
   // For admins, show all batches
   const batches = useMemo(() => {
     if (isTeacher && user) {
-      return allBatches.filter(batch => batch.classTeacherId === user.id);
+      return allBatches.filter((batch) => batch.classTeacherId === user.id);
     }
     return allBatches;
   }, [allBatches, isTeacher, user]);
@@ -552,6 +568,8 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
         studentName: string;
         status: AttendanceStatus | null;
         markedAt?: string;
+        onLeave?: boolean;
+        leaveInfo?: StudentLeaveInfo | null;
       }>;
     return attendance.records.map((record) => ({
       ...record,
@@ -564,7 +582,10 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
     }));
   }, [attendance, localStatus]);
 
-  const pagination = attendance?.pagination;
+  const pagination = useMemo(
+    () => attendance?.pagination ?? null,
+    [attendance]
+  );
 
   // Stats
   const allMarkedOnPage =
@@ -611,6 +632,32 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
       { batchId: selectedBatchId, date: todayDate, records: attendanceRecords },
       {
         onSuccess: () => {
+          // Optimistically update cache with correct query key BEFORE clearing localStatus
+          // This prevents UI flicker when localStatus is cleared
+          queryClient.setQueryData<AttendanceResponse>(
+            attendanceKeys.byBatchDate(selectedBatchId, todayDate, {
+              page: currentPage,
+              limit: PAGINATION_DEFAULTS.LIMIT,
+            }),
+            (old) => {
+              if (!old) return old;
+              const savedMap = new Map(
+                attendanceRecords.map((r) => [r.studentId, r.status])
+              );
+              return {
+                ...old,
+                records: old.records.map((record) => ({
+                  ...record,
+                  status: savedMap.get(record.studentId) ?? record.status,
+                  markedAt: savedMap.has(record.studentId)
+                    ? new Date().toISOString()
+                    : record.markedAt,
+                })),
+              };
+            }
+          );
+
+          // Now safe to clear local status
           const savedStudentIds = new Set(records.map((r) => r.studentId));
           setLocalStatus((prev) => {
             const next = { ...prev };
@@ -637,7 +684,10 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
   const selectedBatch = batches.find((b) => b.id === selectedBatchId);
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
+      {/* Loading Overlay */}
+      <LoadingOverlay isLoading={isSaving} message="Saving attendance..." />
+
       {/* Success Toast */}
       {successMessage && (
         <div className="fixed right-4 top-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -712,7 +762,10 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
           {isTeacher && batches.length === 0 && !batchesLoading && (
             <div className="flex items-center gap-2 rounded-lg bg-warning/10 p-3 text-sm text-warning">
               <AlertCircle className="h-4 w-4" />
-              <span>You are not assigned as class teacher to any batch. Contact admin to assign you a batch.</span>
+              <span>
+                You are not assigned as class teacher to any batch. Contact
+                admin to assign you a batch.
+              </span>
             </div>
           )}
         </CardContent>
@@ -824,6 +877,8 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
                     key={record.studentId}
                     studentName={record.studentName}
                     status={record.status}
+                    onLeave={record.onLeave}
+                    leaveInfo={record.leaveInfo}
                     onStatusChange={(status) =>
                       handleStatusChange(record.studentId, status)
                     }
@@ -850,12 +905,10 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
                   onClick={handleSave}
                   disabled={!allMarkedOnPage || isSaving}
                   className="h-14 w-full text-base"
+                  isLoading={isSaving}
                 >
                   {isSaving ? (
-                    <>
-                      <Spinner className="mr-2 h-5 w-5" />
-                      Saving...
-                    </>
+                    <>Saving...</>
                   ) : allMarkedOnPage ? (
                     <>
                       <Check className="mr-2 h-5 w-5" />
@@ -900,15 +953,30 @@ function MarkAttendanceSkeleton() {
 }
 
 /**
+ * Leave type labels for display
+ */
+const LEAVE_TYPE_DISPLAY: Record<string, string> = {
+  sick: "Sick",
+  family: "Family",
+  vacation: "Vacation",
+  medical: "Medical",
+  other: "Other",
+};
+
+/**
  * Individual student attendance card with toggle buttons
  */
 function StudentAttendanceCard({
   studentName,
   status,
+  onLeave,
+  leaveInfo,
   onStatusChange,
 }: {
   studentName: string;
   status: AttendanceStatus | null;
+  onLeave?: boolean;
+  leaveInfo?: StudentLeaveInfo | null;
   onStatusChange: (status: AttendanceStatus) => void;
 }) {
   const studentId = studentName.replace(/\s+/g, "-").toLowerCase();
@@ -917,9 +985,13 @@ function StudentAttendanceCard({
     <Card
       className={cn(
         "transition-all duration-200",
-        status === "present" &&
+        onLeave && "border-orange-300 bg-orange-50/50 dark:bg-orange-950/20",
+        !onLeave &&
+          status === "present" &&
           "border-success/50 bg-green-50/50 dark:bg-green-950/20",
-        status === "absent" && "border-error/50 bg-red-50/50 dark:bg-red-950/20"
+        !onLeave &&
+          status === "absent" &&
+          "border-error/50 bg-red-50/50 dark:bg-red-950/20"
       )}
     >
       <CardContent className="py-4">
@@ -931,12 +1003,23 @@ function StudentAttendanceCard({
               alt={studentName}
               size="sm"
             />
-            <p
-              id={`student-${studentId}`}
-              className="font-medium text-text-primary"
-            >
-              {studentName}
-            </p>
+            <div>
+              <p
+                id={`student-${studentId}`}
+                className="font-medium text-text-primary"
+              >
+                {studentName}
+              </p>
+              {onLeave && leaveInfo && (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
+                    <CalendarDays className="h-3 w-3 mr-1" />
+                    On Leave (
+                    {LEAVE_TYPE_DISPLAY[leaveInfo.type] || leaveInfo.type})
+                  </Badge>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Toggle Buttons */}
@@ -1019,7 +1102,7 @@ function HistoryTab() {
   const history = historyData?.data ?? [];
   const pagination = historyData?.pagination;
 
-  console.log('historyData', historyData)
+  console.log("historyData", historyData);
 
   const handleFilterChange = useCallback(() => {
     setCurrentPage(1);

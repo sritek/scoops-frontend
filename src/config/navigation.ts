@@ -12,6 +12,9 @@ import {
   MessageSquare,
   AlertTriangle,
   BarChart3,
+  CalendarDays,
+  Calendar,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/types";
@@ -67,6 +70,18 @@ export const navigationItems: NavItem[] = [
     permission: "ATTENDANCE_VIEW", // Accounts won't have this - attendance hidden for them
   },
   {
+    href: "/leave-applications",
+    label: "Leave Requests",
+    icon: CalendarDays,
+    permission: "ATTENDANCE_VIEW",
+  },
+  {
+    href: "/calendar",
+    label: "Calendar",
+    icon: Calendar,
+    permission: "DASHBOARD_VIEW",
+  },
+  {
     href: "/fees",
     label: "Fees",
     icon: IndianRupee,
@@ -76,6 +91,12 @@ export const navigationItems: NavItem[] = [
     href: "/exams",
     label: "Exams",
     icon: GraduationCap,
+    permission: "STUDENT_VIEW",
+  },
+  {
+    href: "/homework",
+    label: "Homework",
+    icon: BookOpen,
     permission: "STUDENT_VIEW",
   },
   {

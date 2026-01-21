@@ -109,6 +109,9 @@ export * from "./exam";
 export * from "./messaging";
 export * from "./complaint";
 export * from "./analytics";
+export * from "./fee";
+export * from "./scholarship";
+export * from "./health";
 
 // Entity Types - Stubs for Phase 1
 export interface Student {

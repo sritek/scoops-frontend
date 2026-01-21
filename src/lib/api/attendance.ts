@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
+import { dashboardKeys } from "./dashboard";
 import type {
   AttendanceResponse,
   MarkAttendanceInput,
@@ -121,12 +122,14 @@ export function useMarkAttendance() {
   return useMutation({
     mutationFn: markAttendance,
     onSuccess: (data) => {
-      // Invalidate all attendance queries for this batch and date
+      // Invalidate attendance queries to ensure data consistency
       queryClient.invalidateQueries({
         queryKey: ["attendance", data.batchId, data.date],
       });
-      // Also invalidate all attendance queries
       queryClient.invalidateQueries({ queryKey: attendanceKeys.all });
+
+      // Also invalidate dashboard to update summary
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
     },
   });
 }

@@ -42,13 +42,16 @@ export default function AnalyticsPage() {
 
   const canViewAnalytics = can("SETTINGS_MANAGE");
 
-  const { data: comparison, isLoading: comparisonLoading } = useBranchComparison();
+  const { data: comparison, isLoading: comparisonLoading } =
+    useBranchComparison();
   const { data: orgStats, isLoading: orgStatsLoading } = useOrgStats();
   const { data: branchPerformance, isLoading: performanceLoading } =
     useBranchPerformance(selectedBranchId);
 
   if (!canViewAnalytics) {
-    return <AccessDenied message="You don't have permission to view analytics." />;
+    return (
+      <AccessDenied description="You don't have permission to view analytics." />
+    );
   }
 
   const isLoading = comparisonLoading || orgStatsLoading;
@@ -201,13 +204,17 @@ export default function AnalyticsPage() {
                     <div className="flex justify-between">
                       <dt className="text-text-muted">Attendance Rate</dt>
                       <dd>
-                        <RateBadge rate={branchPerformance.metrics.attendanceRate} />
+                        <RateBadge
+                          rate={branchPerformance.metrics.attendanceRate}
+                        />
                       </dd>
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-text-muted">Fee Collection</dt>
                       <dd>
-                        <RateBadge rate={branchPerformance.metrics.feeCollectionRate} />
+                        <RateBadge
+                          rate={branchPerformance.metrics.feeCollectionRate}
+                        />
                       </dd>
                     </div>
                     <div className="flex justify-between">
@@ -247,13 +254,18 @@ export default function AnalyticsPage() {
               {/* Attendance Trend */}
               <Card>
                 <CardContent className="p-6">
-                  <h3 className="font-medium mb-4">Attendance Trend (14 Days)</h3>
+                  <h3 className="font-medium mb-4">
+                    Attendance Trend (14 Days)
+                  </h3>
                   {branchPerformance.trends.attendance.length === 0 ? (
                     <p className="text-text-muted text-sm">No data available</p>
                   ) : (
                     <div className="space-y-2">
                       {branchPerformance.trends.attendance.map((point) => (
-                        <div key={point.date} className="flex items-center gap-3">
+                        <div
+                          key={point.date}
+                          className="flex items-center gap-3"
+                        >
                           <span className="text-xs text-text-muted w-20">
                             {formatShortDate(point.date)}
                           </span>

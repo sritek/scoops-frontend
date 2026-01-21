@@ -302,7 +302,22 @@ body {
 }
 
 /* =============================================================================
-   9. PRINT STYLES
+   9. ANIMATIONS
+   Custom keyframes for UI components
+   ============================================================================= */
+
+/* Spinner animation - 8-leaf Radix-inspired design */
+@keyframes spinner-leaf {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.15;
+  }
+}
+
+/* =============================================================================
+   10. PRINT STYLES
    Optimized for printing weekly schedules
    ============================================================================= */
 

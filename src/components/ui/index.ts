@@ -19,6 +19,9 @@ export type { LabelProps } from "./label";
 export { Input } from "./input";
 export type { InputProps } from "./input";
 
+export { Textarea } from "./textarea";
+export type { TextareaProps } from "./textarea";
+
 export { Checkbox } from "./checkbox";
 export type { CheckboxProps } from "./checkbox";
 
@@ -85,6 +88,10 @@ export type { BadgeProps } from "./badge";
 // Spinner
 export { Spinner, PageLoader, spinnerSizes } from "./spinner";
 export type { SpinnerProps } from "./spinner";
+
+// Loading Overlay
+export { LoadingOverlay } from "./loading-overlay";
+export type { LoadingOverlayProps } from "./loading-overlay";
 
 // Stat Card
 export { StatCard, StatCardSkeleton } from "./stat-card";

@@ -123,3 +123,58 @@ export {
   useOrgStats,
   analyticsKeys,
 } from "./analytics";
+
+// Scholarships
+export {
+  useScholarships,
+  useAllScholarships,
+  useScholarship,
+  useCreateScholarship,
+  useUpdateScholarship,
+  useDeleteScholarship,
+  useStudentScholarships,
+  useAssignScholarship,
+  useRemoveStudentScholarship,
+  scholarshipsKeys,
+} from "./scholarships";
+export type { ScholarshipsParams } from "./scholarships";
+
+// Fee Components & Structure
+export {
+  useFeeComponents,
+  useAllFeeComponents,
+  useCreateFeeComponent,
+  useUpdateFeeComponent,
+  useDeleteFeeComponent,
+  useBatchFeeStructures,
+  useBatchFeeStructureByBatch,
+  useCreateBatchFeeStructure,
+  useApplyBatchFeeStructure,
+  useStudentFeeStructure,
+  useStudentFeeStructureById,
+  useCreateStudentFeeStructure,
+  useStudentFeeSummary,
+  useEMITemplates,
+  useCreateEMITemplate,
+  usePendingInstallments,
+  useStudentInstallments,
+  useGenerateInstallments,
+  useRecordInstallmentPayment,
+  useDeleteInstallments,
+  feeComponentsKeys,
+  batchFeeStructureKeys,
+  studentFeeStructureKeys,
+  emiTemplateKeys,
+  installmentsKeys,
+} from "./installments";
+export type { FeeComponentsParams, PendingInstallmentsParams } from "./installments";
+
+// Health
+export {
+  useStudentHealth,
+  useUpdateStudentHealth,
+  useHealthCheckups,
+  useCreateHealthCheckup,
+  useDeleteHealthCheckup,
+  healthKeys,
+} from "./health";

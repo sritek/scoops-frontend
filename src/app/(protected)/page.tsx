@@ -212,29 +212,29 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               <StatCard
                 label="Present"
-                value={data.attendance.totalPresent}
+                value={data.attendance.totalPresent ?? 0}
                 icon={UserCheck}
                 variant="success"
               />
               <StatCard
                 label="Absent"
-                value={data.attendance.totalAbsent}
+                value={data.attendance.totalAbsent ?? 0}
                 icon={UserX}
                 variant="error"
               />
               <StatCard
                 label="Marked"
-                value={`${data.attendance.totalMarked}/${data.attendance.totalActiveStudents}`}
+                value={`${data.attendance.totalMarked ?? 0}/${data.attendance.totalActiveStudents ?? 0}`}
                 icon={ClipboardList}
                 variant="default"
               />
               <StatCard
                 label="Batches Pending"
-                value={data.attendance.batchesPending}
-                subValue={`${data.attendance.batchesMarked} marked`}
+                value={data.attendance.batchesPending ?? 0}
+                subValue={`${data.attendance.batchesMarked ?? 0} marked`}
                 icon={Clock}
                 variant={
-                  data.attendance.batchesPending > 0 ? "warning" : "default"
+                  (data.attendance.batchesPending ?? 0) > 0 ? "warning" : "default"
                 }
               />
             </div>
@@ -254,25 +254,25 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <StatCard
               label="Present"
-              value={data.staffAttendance.present}
+              value={data.staffAttendance.present ?? 0}
               icon={UserCheck}
               variant="success"
             />
             <StatCard
               label="On Leave"
-              value={data.staffAttendance.leave + data.staffAttendance.halfDay}
+              value={(data.staffAttendance.leave ?? 0) + (data.staffAttendance.halfDay ?? 0)}
               icon={Clock}
               variant="default"
             />
             <StatCard
               label="Not Marked"
-              value={data.staffAttendance.notMarked}
+              value={data.staffAttendance.notMarked ?? 0}
               icon={AlertCircle}
-              variant={data.staffAttendance.notMarked > 0 ? "warning" : "default"}
+              variant={(data.staffAttendance.notMarked ?? 0) > 0 ? "warning" : "default"}
             />
             <StatCard
               label="Total Staff"
-              value={data.staffAttendance.totalStaff}
+              value={data.staffAttendance.totalStaff ?? 0}
               icon={Users}
               variant="default"
             />
@@ -300,18 +300,18 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 gap-4">
               <StatCard
                 label="Total Pending"
-                value={formatCurrency(data.pendingFees.totalPendingAmount)}
-                subValue={`${data.pendingFees.totalCount} fees`}
+                value={formatCurrency(data.pendingFees.totalPendingAmount ?? 0)}
+                subValue={`${data.pendingFees.totalCount ?? 0} fees`}
                 icon={IndianRupee}
                 variant="warning"
               />
               <StatCard
                 label="Overdue"
-                value={formatCurrency(data.pendingFees.overdueAmount)}
-                subValue={`${data.pendingFees.overdueCount} fees`}
+                value={formatCurrency(data.pendingFees.overdueAmount ?? 0)}
+                subValue={`${data.pendingFees.overdueCount ?? 0} fees`}
                 icon={AlertCircle}
                 variant={
-                  data.pendingFees.overdueCount > 0 ? "error" : "default"
+                  (data.pendingFees.overdueCount ?? 0) > 0 ? "error" : "default"
                 }
               />
             </div>
@@ -337,13 +337,13 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 gap-4">
                 <StatCard
                   label="Total Collected"
-                  value={formatCurrency(data.feesCollected.totalAmount)}
+                  value={formatCurrency(data.feesCollected.totalAmount ?? 0)}
                   icon={Wallet}
                   variant="success"
                 />
                 <StatCard
                   label="Payments"
-                  value={data.feesCollected.totalCount}
+                  value={data.feesCollected.totalCount ?? 0}
                   subValue={getPaymentModeSummary(data.feesCollected.byMode)}
                   icon={Receipt}
                   variant="default"
@@ -543,14 +543,19 @@ export default function DashboardPage() {
 /**
  * Generate payment mode summary string
  */
-function getPaymentModeSummary(byMode: {
-  cash: { count: number };
-  upi: { count: number };
-  bank: { count: number };
+function getPaymentModeSummary(byMode?: {
+  cash?: { count: number };
+  upi?: { count: number };
+  bank?: { count: number };
 }): string {
+  if (!byMode) return "No payments";
+
   const parts: string[] = [];
-  if (byMode.cash.count > 0) parts.push(`${byMode.cash.count} cash`);
-  if (byMode.upi.count > 0) parts.push(`${byMode.upi.count} UPI`);
-  if (byMode.bank.count > 0) parts.push(`${byMode.bank.count} bank`);
+  if (byMode.cash?.count && byMode.cash.count > 0)
+    parts.push(`${byMode.cash.count} cash`);
+  if (byMode.upi?.count && byMode.upi.count > 0)
+    parts.push(`${byMode.upi.count} UPI`);
+  if (byMode.bank?.count && byMode.bank.count > 0)
+    parts.push(`${byMode.bank.count} bank`);
   return parts.join(", ") || "No payments";
 }

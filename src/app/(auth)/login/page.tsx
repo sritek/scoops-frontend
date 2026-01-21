@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
-  title: "Login",
-  description: "Login to Scoops with your phone number",
+  title: "Staff Login",
+  description: "Login to Scoops with your employee credentials",
 };
 
 /**
@@ -28,8 +29,19 @@ export default function LoginPage() {
       {/* Login form */}
       <LoginForm />
 
+      {/* Parent login link */}
+      <p className="mt-6 text-center text-sm text-text-muted">
+        Are you a parent?{" "}
+        <Link
+          href="/parent/login"
+          className="text-primary-600 hover:text-primary-700 hover:underline"
+        >
+          Login here
+        </Link>
+      </p>
+
       {/* Footer */}
-      <p className="mt-8 text-center text-xs text-text-muted">
+      <p className="mt-6 text-center text-xs text-text-muted">
         By logging in, you agree to our Terms of Service
       </p>
     </div>

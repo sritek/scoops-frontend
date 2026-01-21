@@ -8,6 +8,15 @@ import type { PaginationMeta } from "./index";
 export type AttendanceStatus = "present" | "absent";
 
 /**
+ * Leave info for a student on leave
+ */
+export interface StudentLeaveInfo {
+  type: "sick" | "family" | "vacation" | "medical" | "other";
+  startDate: string;
+  endDate: string;
+}
+
+/**
  * Individual attendance record for a student
  */
 export interface AttendanceRecord {
@@ -15,6 +24,8 @@ export interface AttendanceRecord {
   studentName: string;
   status: AttendanceStatus | null;
   markedAt?: string;
+  onLeave?: boolean;
+  leaveInfo?: StudentLeaveInfo | null;
 }
 
 /**

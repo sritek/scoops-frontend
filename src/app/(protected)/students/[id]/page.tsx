@@ -14,6 +14,8 @@ import {
   FileText,
   Download,
   BookOpen,
+  CreditCard,
+  Heart,
 } from "lucide-react";
 import { useDeleteStudent, useStudent } from "@/lib/api/students";
 import { useStudentReportCard, downloadReportCardPDF } from "@/lib/api";
@@ -28,8 +30,13 @@ import {
   Skeleton,
   Avatar,
   Spinner,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
 } from "@/components/ui";
 import type { ExamType } from "@/types/exam";
+import { StudentFeesTab, StudentHealthTab } from "@/components/students";
 
 /**
  * Student Detail Page
@@ -47,7 +54,8 @@ export default function StudentDetailPage({
 }) {
   const { id } = use(params);
   const { data: student, isLoading, error } = useStudent(id);
-  const { data: reportCard, isLoading: reportCardLoading } = useStudentReportCard(id);
+  const { data: reportCard, isLoading: reportCardLoading } =
+    useStudentReportCard(id);
   const { mutate: deactivateStudent, isPending } = useDeleteStudent();
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const { can } = usePermissions();
@@ -61,7 +69,9 @@ export default function StudentDetailPage({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Report_Card_${student?.fullName?.replace(/\s+/g, "_") || "Student"}.pdf`;
+      a.download = `Report_Card_${
+        student?.fullName?.replace(/\s+/g, "_") || "Student"
+      }.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -172,250 +182,322 @@ export default function StudentDetailPage({
         )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Personal Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <User className="h-5 w-5 text-text-muted" aria-hidden="true" />
-              Personal Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <InfoRow label="Full Name" value={student.fullName} />
-            <InfoRow
-              label="Gender"
-              value={student.gender ? capitalize(student.gender) : "—"}
-            />
-            <InfoRow
-              label="Date of Birth"
-              value={student.dob ? formatDate(student.dob) : "—"}
-            />
-            <InfoRow
-              label="Category"
-              value={student.category ? student.category.toUpperCase() : "—"}
-            />
-            <InfoRow label="CWSN" value={student.isCwsn ? "Yes" : "No"} />
-          </CardContent>
-        </Card>
+      {/* Tabbed Content */}
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList>
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="fees" className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Fees
+          </TabsTrigger>
+          <TabsTrigger value="health" className="flex items-center gap-2">
+            <Heart className="h-4 w-4" />
+            Health
+          </TabsTrigger>
+        </TabsList>
 
-        {/* Academic Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <GraduationCap
-                className="h-5 w-5 text-text-muted"
-                aria-hidden="true"
-              />
-              Academic Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <InfoRow
-              label="Admission Year"
-              value={String(student.admissionYear)}
-            />
-            <InfoRow
-              label="Batch"
-              value={student.batchName || "Not assigned"}
-            />
-            <InfoRow
-              label="Enrolled On"
-              value={formatDate(student.createdAt)}
-            />
-            <InfoRow
-              label="Last Updated"
-              value={formatDate(student.updatedAt)}
-            />
-          </CardContent>
-        </Card>
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="mt-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Personal Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <User
+                    className="h-5 w-5 text-text-muted"
+                    aria-hidden="true"
+                  />
+                  Personal Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <InfoRow label="Full Name" value={student.fullName} />
+                <InfoRow
+                  label="Gender"
+                  value={student.gender ? capitalize(student.gender) : "—"}
+                />
+                <InfoRow
+                  label="Date of Birth"
+                  value={student.dob ? formatDate(student.dob) : "—"}
+                />
+                <InfoRow
+                  label="Category"
+                  value={
+                    student.category ? student.category.toUpperCase() : "—"
+                  }
+                />
+                <InfoRow label="CWSN" value={student.isCwsn ? "Yes" : "No"} />
+              </CardContent>
+            </Card>
 
-        {/* Parent/Guardian Information */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Phone className="h-5 w-5 text-text-muted" aria-hidden="true" />
-              Parent / Guardian
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {student.parents && student.parents.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {student.parents.map((parent) => (
-                  <div
-                    key={parent.id}
-                    className="rounded-lg border border-border-subtle p-4"
-                  >
-                    <div className="flex items-center gap-3 mb-3">
-                      <Avatar
-                        src={parent.photoUrl}
-                        fallback={parent.firstName?.charAt(0)}
-                        alt={parent.fullName}
-                        size="md"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">
-                          {parent.fullName}
-                        </p>
-                        <Badge
-                          variant="default"
-                          className="capitalize text-xs mt-0.5"
-                        >
-                          {parent.relation}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-text-muted">
-                      <Phone className="h-4 w-4" aria-hidden="true" />
-                      <a
-                        href={`tel:${parent.phone}`}
-                        className="hover:text-primary-600"
+            {/* Academic Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <GraduationCap
+                    className="h-5 w-5 text-text-muted"
+                    aria-hidden="true"
+                  />
+                  Academic Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <InfoRow
+                  label="Admission Year"
+                  value={String(student.admissionYear)}
+                />
+                <InfoRow
+                  label="Batch"
+                  value={student.batchName || "Not assigned"}
+                />
+                <InfoRow
+                  label="Enrolled On"
+                  value={formatDate(student.createdAt)}
+                />
+                <InfoRow
+                  label="Last Updated"
+                  value={formatDate(student.updatedAt)}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Parent/Guardian Information */}
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Phone
+                    className="h-5 w-5 text-text-muted"
+                    aria-hidden="true"
+                  />
+                  Parent / Guardian
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {student.parents && student.parents.length > 0 ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {student.parents.map((parent) => (
+                      <div
+                        key={parent.id}
+                        className="rounded-lg border border-border-subtle p-4"
                       >
-                        {parent.phone}
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-text-muted text-center py-4">
-                No parent/guardian information available
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Report Card Section */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <FileText className="h-5 w-5 text-text-muted" aria-hidden="true" />
-            Report Card
-          </CardTitle>
-          {reportCard && reportCard.exams.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadPDF}
-              disabled={isDownloadingPDF}
-            >
-              {isDownloadingPDF ? (
-                <Spinner className="mr-2 h-4 w-4" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-              )}
-              Download PDF
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          {reportCardLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : reportCard && reportCard.exams.length > 0 ? (
-            <div className="space-y-4">
-              {/* Summary Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <StatCard
-                  label="Total Exams"
-                  value={reportCard.exams.length}
-                  icon={<BookOpen className="h-4 w-4" />}
-                />
-                <StatCard
-                  label="Passed"
-                  value={reportCard.exams.filter((e) => e.isPassed).length}
-                  variant="success"
-                />
-                <StatCard
-                  label="Failed"
-                  value={reportCard.exams.filter((e) => e.marksObtained !== null && !e.isPassed).length}
-                  variant="error"
-                />
-                <StatCard
-                  label="Average"
-                  value={calculateAverage(reportCard.exams)}
-                  suffix="%"
-                />
-              </div>
-
-              {/* Results Table */}
-              <div className="overflow-x-auto rounded-lg border border-border-subtle">
-                <table className="w-full text-sm">
-                  <thead className="bg-surface-elevated">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-medium text-text-muted">Date</th>
-                      <th className="px-4 py-3 text-left font-medium text-text-muted">Exam</th>
-                      <th className="px-4 py-3 text-left font-medium text-text-muted">Subject</th>
-                      <th className="px-4 py-3 text-left font-medium text-text-muted">Type</th>
-                      <th className="px-4 py-3 text-center font-medium text-text-muted">Marks</th>
-                      <th className="px-4 py-3 text-center font-medium text-text-muted">Grade</th>
-                      <th className="px-4 py-3 text-center font-medium text-text-muted">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border-subtle">
-                    {reportCard.exams.map((exam) => (
-                      <tr key={exam.examId} className="hover:bg-surface-hover">
-                        <td className="px-4 py-3 text-text-secondary">
-                          {formatDate(exam.examDate)}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-text-primary">
-                          {exam.examName}
-                        </td>
-                        <td className="px-4 py-3 text-text-secondary">
-                          {exam.subjectName}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="default">{formatExamType(exam.examType)}</Badge>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {exam.marksObtained !== null ? (
-                            <span className="font-medium">
-                              {exam.marksObtained}/{exam.totalMarks}
-                            </span>
-                          ) : (
-                            <span className="text-text-muted">AB</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Badge
-                            variant={
-                              exam.marksObtained === null
-                                ? "default"
-                                : exam.isPassed
-                                ? "success"
-                                : "destructive"
-                            }
+                        <div className="flex items-center gap-3 mb-3">
+                          <Avatar
+                            src={parent.photoUrl}
+                            fallback={parent.firstName?.charAt(0)}
+                            alt={parent.fullName}
+                            size="md"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">
+                              {parent.fullName}
+                            </p>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Badge
+                                variant="default"
+                                className="capitalize text-xs"
+                              >
+                                {parent.relation}
+                              </Badge>
+                              {parent.isPrimaryContact && (
+                                <Badge variant="success" className="text-xs">
+                                  Primary Contact
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-text-muted">
+                          <Phone className="h-4 w-4" aria-hidden="true" />
+                          <a
+                            href={`tel:${parent.phone}`}
+                            className="hover:text-primary-600"
                           >
-                            {exam.grade}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {exam.marksObtained === null ? (
-                            <Badge variant="default">Absent</Badge>
-                          ) : exam.isPassed ? (
-                            <Badge variant="success">Pass</Badge>
-                          ) : (
-                            <Badge variant="destructive">Fail</Badge>
-                          )}
-                        </td>
-                      </tr>
+                            {parent.phone}
+                          </a>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-text-muted">
-              <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No exam results available yet.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </div>
+                ) : (
+                  <p className="text-text-muted text-center py-4">
+                    No parent/guardian information available
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Report Card Section */}
+          <Card className="mt-6">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText
+                  className="h-5 w-5 text-text-muted"
+                  aria-hidden="true"
+                />
+                Report Card
+              </CardTitle>
+              {reportCard && reportCard.exams.length > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleDownloadPDF}
+                  disabled={isDownloadingPDF}
+                >
+                  {isDownloadingPDF ? (
+                    <Spinner className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Download PDF
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent>
+              {reportCardLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : reportCard && reportCard.exams.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <StatCard
+                      label="Total Exams"
+                      value={reportCard.exams.length}
+                      icon={<BookOpen className="h-4 w-4" />}
+                    />
+                    <StatCard
+                      label="Passed"
+                      value={reportCard.exams.filter((e) => e.isPassed).length}
+                      variant="success"
+                    />
+                    <StatCard
+                      label="Failed"
+                      value={
+                        reportCard.exams.filter(
+                          (e) => e.marksObtained !== null && !e.isPassed
+                        ).length
+                      }
+                      variant="error"
+                    />
+                    <StatCard
+                      label="Average"
+                      value={calculateAverage(reportCard.exams)}
+                      suffix="%"
+                    />
+                  </div>
+
+                  {/* Results Table */}
+                  <div className="overflow-x-auto rounded-lg border border-border-subtle">
+                    <table className="w-full text-sm">
+                      <thead className="bg-surface-elevated">
+                        <tr>
+                          <th className="px-4 py-3 text-left font-medium text-text-muted">
+                            Date
+                          </th>
+                          <th className="px-4 py-3 text-left font-medium text-text-muted">
+                            Exam
+                          </th>
+                          <th className="px-4 py-3 text-left font-medium text-text-muted">
+                            Subject
+                          </th>
+                          <th className="px-4 py-3 text-left font-medium text-text-muted">
+                            Type
+                          </th>
+                          <th className="px-4 py-3 text-center font-medium text-text-muted">
+                            Marks
+                          </th>
+                          <th className="px-4 py-3 text-center font-medium text-text-muted">
+                            Grade
+                          </th>
+                          <th className="px-4 py-3 text-center font-medium text-text-muted">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-subtle">
+                        {reportCard.exams.map((exam) => (
+                          <tr
+                            key={exam.examId}
+                            className="hover:bg-surface-hover"
+                          >
+                            <td className="px-4 py-3 text-text-secondary">
+                              {formatDate(exam.examDate)}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-text-primary">
+                              {exam.examName}
+                            </td>
+                            <td className="px-4 py-3 text-text-secondary">
+                              {exam.subjectName}
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge variant="default">
+                                {formatExamType(exam.examType)}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {exam.marksObtained !== null ? (
+                                <span className="font-medium">
+                                  {exam.marksObtained}/{exam.totalMarks}
+                                </span>
+                              ) : (
+                                <span className="text-text-muted">AB</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <Badge
+                                variant={
+                                  exam.marksObtained === null
+                                    ? "default"
+                                    : exam.isPassed
+                                    ? "success"
+                                    : "error"
+                                }
+                              >
+                                {exam.grade}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {exam.marksObtained === null ? (
+                                <Badge variant="default">Absent</Badge>
+                              ) : exam.isPassed ? (
+                                <Badge variant="success">Pass</Badge>
+                              ) : (
+                                <Badge variant="error">Fail</Badge>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-text-muted">
+                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No exam results available yet.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Fees Tab */}
+        <TabsContent value="fees" className="mt-6">
+          <StudentFeesTab studentId={id} />
+        </TabsContent>
+
+        {/* Health Tab */}
+        <TabsContent value="health" className="mt-6">
+          <StudentHealthTab studentId={id} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -527,11 +609,16 @@ function formatExamType(type: ExamType): string {
 /**
  * Calculate average percentage from exam results
  */
-function calculateAverage(exams: { marksObtained: number | null; totalMarks: number }[]): number {
+function calculateAverage(
+  exams: { marksObtained: number | null; totalMarks: number }[]
+): number {
   const scoredExams = exams.filter((e) => e.marksObtained !== null);
   if (scoredExams.length === 0) return 0;
 
-  const totalObtained = scoredExams.reduce((sum, e) => sum + (e.marksObtained || 0), 0);
+  const totalObtained = scoredExams.reduce(
+    (sum, e) => sum + (e.marksObtained || 0),
+    0
+  );
   const totalMax = scoredExams.reduce((sum, e) => sum + e.totalMarks, 0);
 
   return totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;

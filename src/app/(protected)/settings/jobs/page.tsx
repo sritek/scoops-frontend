@@ -17,7 +17,6 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Link,
   ArrowLeft,
 } from "lucide-react";
 import {
@@ -56,6 +55,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 /**
  * Jobs Dashboard Page
@@ -104,13 +104,21 @@ export default function JobsDashboardPage() {
     <div className="space-y-8 max-w-6xl">
       {/* Header */}
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center">
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/students">
+          <Link href="/settings">
             <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-            Back
           </Link>
         </Button>
+
+        <div>
+          <h1 className="text-2xl font-semibold text-text-primary">
+            Jobs Dashboard
+          </h1>
+          <p className="text-sm text-text-muted">
+            Monitor and manage scheduled jobs
+          </p>
+        </div>
       </div>
 
       {/* Stats Overview */}

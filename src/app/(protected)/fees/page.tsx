@@ -18,6 +18,10 @@ import {
   Copy,
   Send,
   XCircle,
+  Layers,
+  Award,
+  Calendar,
+  Trash2,
 } from "lucide-react";
 import {
   useFeePlans,
@@ -32,6 +36,16 @@ import {
   useCreatePaymentLink,
   useCancelPaymentLink,
 } from "@/lib/api/payments";
+import {
+  useFeeComponents,
+  useCreateFeeComponent,
+  useDeleteFeeComponent,
+  useScholarships,
+  useCreateScholarship,
+  useDeleteScholarship,
+  useEMITemplates,
+  useCreateEMITemplate,
+} from "@/lib/api";
 import { usePermissions, useDebounce } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import {
@@ -54,6 +68,7 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
+  Skeleton,
 } from "@/components/ui";
 import type {
   FeePlan,
@@ -61,11 +76,14 @@ import type {
   FeeFrequency,
   PaymentMode,
   Receipt as ReceiptType,
+  FeeComponent,
+  EMIPlanTemplate,
 } from "@/types/fee";
+import type { Scholarship } from "@/types/scholarship";
 import type { PaymentLink } from "@/types/payment";
 import { PAGINATION_DEFAULTS } from "@/types";
 
-type TabType = "plans" | "pending" | "receipts" | "links";
+type TabType = "plans" | "pending" | "receipts" | "links" | "components" | "scholarships" | "emi-templates";
 
 /**
  * Fees Management Page
@@ -176,6 +194,61 @@ export default function FeesPage() {
             Payment Links
           </button>
         )}
+        {canManageFees && (
+          <>
+            <button
+              onClick={() => {
+                setActiveTab("components");
+                setCurrentPage(1);
+              }}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "components"
+                  ? "border-primary-600 text-primary-600"
+                  : "border-transparent text-text-muted hover:text-text-primary"
+              }`}
+            >
+              <Layers
+                className="inline-block mr-2 h-4 w-4"
+                aria-hidden="true"
+              />
+              Components
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("scholarships");
+                setCurrentPage(1);
+              }}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "scholarships"
+                  ? "border-primary-600 text-primary-600"
+                  : "border-transparent text-text-muted hover:text-text-primary"
+              }`}
+            >
+              <Award
+                className="inline-block mr-2 h-4 w-4"
+                aria-hidden="true"
+              />
+              Scholarships
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("emi-templates");
+                setCurrentPage(1);
+              }}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "emi-templates"
+                  ? "border-primary-600 text-primary-600"
+                  : "border-transparent text-text-muted hover:text-text-primary"
+              }`}
+            >
+              <Calendar
+                className="inline-block mr-2 h-4 w-4"
+                aria-hidden="true"
+              />
+              EMI Templates
+            </button>
+          </>
+        )}
       </div>
 
       {/* Tab Content */}
@@ -205,6 +278,9 @@ export default function FeesPage() {
           setCurrentPage={setCurrentPage}
         />
       )}
+      {activeTab === "components" && <FeeComponentsTab />}
+      {activeTab === "scholarships" && <ScholarshipsTab />}
+      {activeTab === "emi-templates" && <EMITemplatesTab />}
     </div>
   );
 }
@@ -1140,6 +1216,537 @@ function PaymentLinksTab({
         </Card>
       )}
     </div>
+  );
+}
+
+/**
+ * Fee Components Tab (Phase 3)
+ */
+function FeeComponentsTab() {
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState("tuition");
+  const [newDescription, setNewDescription] = useState("");
+
+  const { data, isLoading } = useFeeComponents({ limit: 50 });
+  const { mutate: createComponent, isPending: isCreating } = useCreateFeeComponent();
+  const { mutate: deleteComponent, isPending: isDeleting } = useDeleteFeeComponent();
+
+  const components = data?.data ?? [];
+
+  const handleCreate = () => {
+    if (!newName) return;
+    createComponent(
+      { name: newName, type: newType as FeeComponent["type"], description: newDescription || undefined },
+      {
+        onSuccess: () => {
+          setShowCreateDialog(false);
+          setNewName("");
+          setNewType("tuition");
+          setNewDescription("");
+        },
+      }
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-6 space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex justify-end mb-4">
+        <Button onClick={() => setShowCreateDialog(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Component
+        </Button>
+      </div>
+
+      {components.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Layers}
+            title="No fee components"
+            description="Create fee components to build fee structures"
+            action={
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Component
+              </Button>
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {components.map((comp) => (
+            <Card key={comp.id}>
+              <CardContent className="pt-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-medium">{comp.name}</p>
+                    <Badge variant="default" className="mt-1 capitalize">
+                      {comp.type.replace("_", " ")}
+                    </Badge>
+                    {comp.description && (
+                      <p className="text-sm text-text-muted mt-2">{comp.description}</p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteComponent(comp.id)}
+                    disabled={isDeleting}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Fee Component</DialogTitle>
+            <DialogDescription>
+              Add a new fee component for building fee structures
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="compName">Name</Label>
+              <Input
+                id="compName"
+                placeholder="e.g., Tuition Fee"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="compType">Type</Label>
+              <Select value={newType} onValueChange={setNewType}>
+                <SelectTrigger id="compType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tuition">Tuition</SelectItem>
+                  <SelectItem value="admission">Admission</SelectItem>
+                  <SelectItem value="transport">Transport</SelectItem>
+                  <SelectItem value="lab">Lab</SelectItem>
+                  <SelectItem value="library">Library</SelectItem>
+                  <SelectItem value="sports">Sports</SelectItem>
+                  <SelectItem value="exam">Exam</SelectItem>
+                  <SelectItem value="uniform">Uniform</SelectItem>
+                  <SelectItem value="misc">Miscellaneous</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="compDesc">Description (optional)</Label>
+              <Input
+                id="compDesc"
+                placeholder="Brief description"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setShowCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreate} disabled={!newName || isCreating}>
+              {isCreating ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/**
+ * Scholarships Tab (Phase 3)
+ */
+function ScholarshipsTab() {
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<"percentage" | "fixed_amount">("percentage");
+  const [newBasis, setNewBasis] = useState("merit");
+  const [newValue, setNewValue] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+
+  const { data, isLoading } = useScholarships({ limit: 50 });
+  const { mutate: createScholarship, isPending: isCreating } = useCreateScholarship();
+  const { mutate: deleteScholarship, isPending: isDeleting } = useDeleteScholarship();
+
+  const scholarships = data?.data ?? [];
+
+  const handleCreate = () => {
+    if (!newName || !newValue) return;
+    createScholarship(
+      {
+        name: newName,
+        type: newType,
+        basis: newBasis as Scholarship["basis"],
+        value: parseFloat(newValue),
+        description: newDescription || undefined,
+      },
+      {
+        onSuccess: () => {
+          setShowCreateDialog(false);
+          setNewName("");
+          setNewType("percentage");
+          setNewBasis("merit");
+          setNewValue("");
+          setNewDescription("");
+        },
+      }
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-6 space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex justify-end mb-4">
+        <Button onClick={() => setShowCreateDialog(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Scholarship
+        </Button>
+      </div>
+
+      {scholarships.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Award}
+            title="No scholarships"
+            description="Create scholarships to offer discounts to students"
+            action={
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Scholarship
+              </Button>
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {scholarships.map((sch) => (
+            <Card key={sch.id}>
+              <CardContent className="pt-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-medium">{sch.name}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="success">
+                        {sch.type === "percentage"
+                          ? `${sch.value}% off`
+                          : `₹${sch.value.toLocaleString()} off`}
+                      </Badge>
+                      <Badge variant="default" className="capitalize">
+                        {sch.basis.replace("_", " ")}
+                      </Badge>
+                    </div>
+                    {sch.description && (
+                      <p className="text-sm text-text-muted mt-2">{sch.description}</p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteScholarship(sch.id)}
+                    disabled={isDeleting}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Scholarship</DialogTitle>
+            <DialogDescription>
+              Add a new scholarship to offer discounts to students
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="schName">Name</Label>
+              <Input
+                id="schName"
+                placeholder="e.g., Merit Scholarship"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="schType">Type</Label>
+                <Select value={newType} onValueChange={(v) => setNewType(v as typeof newType)}>
+                  <SelectTrigger id="schType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentage</SelectItem>
+                    <SelectItem value="fixed_amount">Fixed Amount</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="schValue">
+                  {newType === "percentage" ? "Percentage (%)" : "Amount (₹)"}
+                </Label>
+                <Input
+                  id="schValue"
+                  type="number"
+                  placeholder={newType === "percentage" ? "e.g., 25" : "e.g., 5000"}
+                  value={newValue}
+                  onChange={(e) => setNewValue(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="schBasis">Basis</Label>
+              <Select value={newBasis} onValueChange={setNewBasis}>
+                <SelectTrigger id="schBasis">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="merit">Merit</SelectItem>
+                  <SelectItem value="need_based">Need Based</SelectItem>
+                  <SelectItem value="sports">Sports</SelectItem>
+                  <SelectItem value="sibling">Sibling</SelectItem>
+                  <SelectItem value="staff_ward">Staff Ward</SelectItem>
+                  <SelectItem value="government">Government</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="schDesc">Description (optional)</Label>
+              <Input
+                id="schDesc"
+                placeholder="Brief description"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setShowCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreate} disabled={!newName || !newValue || isCreating}>
+              {isCreating ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/**
+ * EMI Templates Tab (Phase 3)
+ */
+function EMITemplatesTab() {
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newInstallmentCount, setNewInstallmentCount] = useState("4");
+  const [isDefault, setIsDefault] = useState(false);
+
+  const { data, isLoading } = useEMITemplates();
+  const { mutate: createTemplate, isPending: isCreating } = useCreateEMITemplate();
+
+  const templates = data ?? [];
+
+  const handleCreate = () => {
+    if (!newName || !newInstallmentCount) return;
+
+    const count = parseInt(newInstallmentCount);
+    const percentPerInstallment = Math.floor(100 / count);
+    const remainder = 100 - percentPerInstallment * count;
+
+    // Generate split config - equal distribution with remainder in last
+    const splitConfig = Array.from({ length: count }, (_, i) => ({
+      percent: i === count - 1 ? percentPerInstallment + remainder : percentPerInstallment,
+      dueDaysFromStart: i * Math.floor(365 / count),
+    }));
+
+    createTemplate(
+      {
+        name: newName,
+        installmentCount: count,
+        splitConfig,
+        isDefault,
+      },
+      {
+        onSuccess: () => {
+          setShowCreateDialog(false);
+          setNewName("");
+          setNewInstallmentCount("4");
+          setIsDefault(false);
+        },
+      }
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-6 space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex justify-end mb-4">
+        <Button onClick={() => setShowCreateDialog(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Template
+        </Button>
+      </div>
+
+      {templates.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Calendar}
+            title="No EMI templates"
+            description="Create EMI templates to define installment plans"
+            action={
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Template
+              </Button>
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {templates.map((tmpl) => (
+            <Card key={tmpl.id} className={tmpl.isDefault ? "border-primary-500" : ""}>
+              <CardContent className="pt-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{tmpl.name}</p>
+                      {tmpl.isDefault && (
+                        <Badge variant="info" className="text-xs">
+                          Default
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-text-muted mt-1">
+                      {tmpl.installmentCount} installments
+                    </p>
+                    <div className="mt-2 text-xs text-text-muted">
+                      {(tmpl.splitConfig as Array<{ percent: number; dueDaysFromStart: number }>)
+                        .slice(0, 4)
+                        .map((split, idx) => (
+                          <span key={idx}>
+                            {idx > 0 && " • "}
+                            {split.percent}%
+                          </span>
+                        ))}
+                      {tmpl.installmentCount > 4 && " ..."}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create EMI Template</DialogTitle>
+            <DialogDescription>
+              Add a new EMI template for generating installments
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="emiName">Name</Label>
+              <Input
+                id="emiName"
+                placeholder="e.g., Quarterly"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emiCount">Number of Installments</Label>
+              <Select value={newInstallmentCount} onValueChange={setNewInstallmentCount}>
+                <SelectTrigger id="emiCount">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 (One-time)</SelectItem>
+                  <SelectItem value="2">2 (Half-yearly)</SelectItem>
+                  <SelectItem value="3">3 (Trimester)</SelectItem>
+                  <SelectItem value="4">4 (Quarterly)</SelectItem>
+                  <SelectItem value="6">6 (Bi-monthly)</SelectItem>
+                  <SelectItem value="12">12 (Monthly)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="emiDefault"
+                checked={isDefault}
+                onChange={(e) => setIsDefault(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="emiDefault" className="text-sm font-normal">
+                Set as default template
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setShowCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreate} disabled={!newName || isCreating}>
+              {isCreating ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

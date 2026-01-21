@@ -4,12 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import {
   MessageSquare,
   Plus,
-  Send,
   AlertCircle,
-  Users,
   User,
   Megaphone,
-  ArrowLeft,
 } from "lucide-react";
 import {
   useConversations,
@@ -21,9 +18,13 @@ import {
 import { useBatches } from "@/lib/api/batches";
 import { usePermissions } from "@/lib/hooks";
 import {
+  MessagesLayout,
+  ConversationListItem,
+  MessageBubble,
+  ChatPanelShell,
+} from "@/components/messages";
+import {
   Button,
-  Card,
-  CardContent,
   Badge,
   EmptyState,
   Dialog,
@@ -39,16 +40,15 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
-  Spinner,
   StudentSearchSelect,
 } from "@/components/ui";
-import type { Conversation, Message, MessageType } from "@/types/messaging";
+import type { Conversation, MessageType } from "@/types/messaging";
 import type { Student } from "@/types/student";
 import { PAGINATION_DEFAULTS } from "@/types";
-import { cn } from "@/lib/utils";
+import { capitalizeFirstLetter } from "@/lib/utils/format-utils";
 
 /**
- * Messages Page
+ * Staff Messages Page
  */
 export default function MessagesPage() {
   const [selectedConversationId, setSelectedConversationId] = useState<
@@ -67,10 +67,12 @@ export default function MessagesPage() {
 
   const conversations = data?.data ?? [];
 
+  // Auto-select first conversation on desktop
   useEffect(() => {
     if (
       conversations.length > 0 &&
       !selectedConversationId &&
+      typeof window !== "undefined" &&
       window.innerWidth >= 768
     ) {
       Promise.resolve().then(() => {
@@ -80,96 +82,38 @@ export default function MessagesPage() {
   }, [conversations, selectedConversationId]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-text-primary">Messages</h1>
-          <p className="text-sm text-text-muted">
-            Communicate with parents and staff
-          </p>
-        </div>
-        <Button onClick={() => setShowNewDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Message
-        </Button>
-      </div>
-
-      {error ? (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="flex items-center gap-3 py-4">
-            <AlertCircle className="h-5 w-5 text-error" />
-            <p className="text-sm text-error">
-              Failed to load messages. Please try again.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="flex gap-4 h-[calc(100vh-220px)] min-h-[500px]">
-          {/* Conversation List */}
-          <div
-            className={`w-full md:w-80 shrink-0 ${
-              selectedConversationId ? "hidden md:block" : ""
-            }`}
-          >
-            <Card className="h-full overflow-hidden">
-              <div className="h-full overflow-y-auto">
-                {isLoading ? (
-                  <div className="flex h-32 items-center justify-center">
-                    <Spinner className="h-6 w-6" />
-                  </div>
-                ) : conversations.length === 0 ? (
-                  <EmptyState
-                    icon={MessageSquare}
-                    title="No conversations"
-                    description="Start a new conversation"
-                    action={
-                      <Button onClick={() => setShowNewDialog(true)}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        New Message
-                      </Button>
-                    }
-                  />
-                ) : (
-                  <div className="divide-y divide-border-subtle">
-                    {conversations.map((conversation) => (
-                      <ConversationItem
-                        key={conversation.id}
-                        conversation={conversation}
-                        isSelected={selectedConversationId === conversation.id}
-                        onClick={() =>
-                          setSelectedConversationId(conversation.id)
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </Card>
-          </div>
-
-          {/* Chat Panel */}
-          <div
-            className={`flex-1 ${
-              selectedConversationId ? "" : "hidden md:block"
-            }`}
-          >
-            {selectedConversationId ? (
-              <ChatPanel
-                conversationId={selectedConversationId}
-                onBack={() => setSelectedConversationId(null)}
-              />
-            ) : (
-              <Card className="h-full flex items-center justify-center">
-                <div className="text-center text-text-muted">
-                  <MessageSquare className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                  <p>Select a conversation to view messages</p>
-                </div>
-              </Card>
-            )}
-          </div>
-        </div>
-      )}
+    <>
+      <MessagesLayout
+        title="Messages"
+        description="Communicate with parents and staff"
+        headerAction={
+          <Button onClick={() => setShowNewDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Message
+          </Button>
+        }
+        conversationList={
+          <ConversationList
+            conversations={conversations}
+            selectedId={selectedConversationId}
+            onSelect={setSelectedConversationId}
+            isEmpty={!isLoading && conversations.length === 0}
+            onNewMessage={() => setShowNewDialog(true)}
+          />
+        }
+        chatPanel={
+          selectedConversationId ? (
+            <ChatPanel
+              conversationId={selectedConversationId}
+              onBack={() => setSelectedConversationId(null)}
+            />
+          ) : null
+        }
+        selectedId={selectedConversationId}
+        onBack={() => setSelectedConversationId(null)}
+        isLoading={isLoading}
+        error={error instanceof Error ? error : null}
+      />
 
       {/* New Message Dialog */}
       <NewMessageDialog
@@ -181,82 +125,66 @@ export default function MessagesPage() {
           setShowNewDialog(false);
         }}
       />
+    </>
+  );
+}
+
+/**
+ * Conversation List Component
+ */
+function ConversationList({
+  conversations,
+  selectedId,
+  onSelect,
+  isEmpty,
+  onNewMessage,
+}: {
+  conversations: Conversation[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  isEmpty: boolean;
+  onNewMessage: () => void;
+}) {
+  if (isEmpty) {
+    return (
+      <EmptyState
+        icon={MessageSquare}
+        title="No conversations"
+        description="Start a new conversation"
+        action={
+          <Button onClick={onNewMessage}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Message
+          </Button>
+        }
+      />
+    );
+  }
+
+  return (
+    <div className="divide-y divide-border-subtle">
+      {conversations.map((conversation) => (
+        <ConversationListItem
+          key={conversation.id}
+          title={conversation.title}
+          type={conversation.type as "direct" | "broadcast" | "announcement"}
+          batchName={conversation.batchName}
+          updatedAt={conversation.updatedAt}
+          isSelected={selectedId === conversation.id}
+          onClick={() => onSelect(conversation.id)}
+          subtitle={
+            conversation.type === "direct"
+              ? `${capitalizeFirstLetter(conversation.participants[0]?.type ?? "")}: ${conversation.participants[0]?.name ?? ""}`
+              : undefined
+          }
+        />
+      ))}
     </div>
   );
 }
 
 /**
- * Conversation Item
- */
-function ConversationItem({
-  conversation,
-  isSelected,
-  onClick,
-}: {
-  conversation: Conversation;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  const getTypeIcon = (type: MessageType) => {
-    switch (type) {
-      case "broadcast":
-        return <Megaphone className="h-4 w-4" />;
-      case "announcement":
-        return <Users className="h-4 w-4" />;
-      default:
-        return <User className="h-4 w-4" />;
-    }
-  };
-
-  console.log("conversation", conversation);
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "w-full p-4 text-left hover:bg-surface-secondary transition-colors",
-        isSelected ? "bg-primary-100 dark:bg-primary-900/20" : ""
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <div className="rounded-full bg-surface-secondary p-2 text-text-muted">
-          {getTypeIcon(conversation.type)}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="font-medium truncate">{conversation.title}</p>
-            {conversation.type === "broadcast" && (
-              <Badge variant="info" className="text-[10px]">
-                Broadcast
-              </Badge>
-            )}
-          </div>
-          {conversation.batchName && (
-            <p className="text-xs text-text-muted">{conversation.batchName}</p>
-          )}
-          {conversation.type === "direct" && (
-            <p className="text-xs text-text-muted">
-              {conversation.participants[0].type} :{" "}
-              {conversation.participants[0].name}
-            </p>
-          )}
-
-          {/* {conversation.lastMessage && (
-            <p className="text-sm text-text-muted truncate mt-1">
-              {conversation.lastMessage.content}
-            </p>
-          )}
-          <p className="text-xs text-text-muted mt-1">
-            {formatRelativeTime(conversation.updatedAt)}
-          </p> */}
-        </div>
-      </div>
-    </button>
-  );
-}
-
-/**
- * Chat Panel
+ * Chat Panel Component
  */
 function ChatPanel({
   conversationId,
@@ -265,7 +193,6 @@ function ChatPanel({
   conversationId: string;
   onBack: () => void;
 }) {
-  const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -275,142 +202,38 @@ function ChatPanel({
   } = useConversation(conversationId);
   const { mutate: sendMessage, isPending: isSending } = useSendMessage();
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [conversation?.messages]);
-
-  const handleSend = () => {
-    if (!newMessage.trim() || isSending) return;
-
-    sendMessage(
-      { conversationId, input: { content: newMessage } },
-      {
-        onSuccess: () => {
-          setNewMessage("");
-        },
-      }
-    );
+  const handleSend = (content: string) => {
+    sendMessage({ conversationId, input: { content } });
   };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <Card className="h-full flex items-center justify-center">
-        <Spinner className="h-8 w-8" />
-      </Card>
-    );
-  }
-
-  if (error || !conversation) {
-    return (
-      <Card className="h-full flex items-center justify-center">
-        <div className="text-center text-error">
-          <AlertCircle className="mx-auto h-8 w-8 mb-2" />
-          <p>Failed to load conversation</p>
-        </div>
-      </Card>
-    );
-  }
 
   return (
-    <Card className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b border-border-subtle">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onBack}
-          className="md:hidden"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h2 className="font-medium">{conversation.title}</h2>
-          {conversation.batchName && (
-            <p className="text-xs text-text-muted">{conversation.batchName}</p>
-          )}
-        </div>
+    <ChatPanelShell
+      title={conversation?.title ?? "Loading..."}
+      subtitle={conversation?.batchName}
+      badge={
         <Badge variant="default" className="capitalize">
-          {conversation.type}
+          {conversation?.type ?? "direct"}
         </Badge>
-      </div>
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {conversation.messages.length === 0 ? (
-          <div className="text-center text-text-muted py-8">
-            <p>No messages yet. Start the conversation!</p>
-          </div>
-        ) : (
-          conversation.messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input */}
-      <div className="p-4 border-t border-border-subtle">
-        <div className="flex gap-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Type a message..."
-            disabled={isSending}
-            className="flex-1"
+      }
+      messages={
+        conversation?.messages.map((msg) => (
+          <MessageBubble
+            key={msg.id}
+            content={msg.content}
+            senderName={msg.senderName}
+            isOwnMessage={msg.isOwnMessage}
+            createdAt={msg.createdAt}
           />
-          <Button
-            onClick={handleSend}
-            disabled={!newMessage.trim() || isSending}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-/**
- * Message Bubble
- */
-function MessageBubble({ message }: { message: Message }) {
-  return (
-    <div
-      className={`flex ${
-        message.isOwnMessage ? "justify-end" : "justify-start"
-      }`}
-    >
-      <div
-        className={`max-w-[70%] rounded-lg px-4 py-2 ${
-          message.isOwnMessage
-            ? "bg-primary-600 text-white"
-            : "bg-surface-secondary text-text-primary"
-        }`}
-      >
-        {!message.isOwnMessage && (
-          <p className="text-xs font-medium mb-1 opacity-70">
-            {message.senderName}
-          </p>
-        )}
-        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-        <p
-          className={`text-[10px] mt-1 ${
-            message.isOwnMessage ? "text-white/70" : "text-text-muted"
-          }`}
-        >
-          {formatTime(message.createdAt)}
-        </p>
-      </div>
-    </div>
+        )) ?? null
+      }
+      onBack={onBack}
+      onSend={handleSend}
+      isSending={isSending}
+      isLoading={isLoading}
+      error={error instanceof Error ? error : null}
+      hasMessages={(conversation?.messages.length ?? 0) > 0}
+      messagesEndRef={messagesEndRef}
+    />
   );
 }
 
@@ -665,40 +488,12 @@ function NewMessageDialog({
               {isPending
                 ? "Sending..."
                 : messageType === "broadcast"
-                ? "Send Broadcast"
-                : "Send Message"}
+                  ? "Send Broadcast"
+                  : "Send Message"}
             </Button>
           )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-}
-
-/**
- * Format relative time
- */
-function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
-}
-
-/**
- * Format time
- */
-function formatTime(dateString: string): string {
-  return new Date(dateString).toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }

@@ -11,6 +11,7 @@ import {
   Clock,
   User,
   Grid,
+  CreditCard,
 } from "lucide-react";
 import {
   Button,
@@ -121,6 +122,12 @@ export default function BatchDetailPage() {
               <Link href={`/batches/${batchId}/edit`}>
                 <Edit className="h-4 w-4 mr-1" />
                 Edit
+              </Link>
+            </Button>
+            <Button variant="secondary" asChild>
+              <Link href={`/batches/${batchId}/fees`}>
+                <CreditCard className="h-4 w-4 mr-1" />
+                Fees
               </Link>
             </Button>
             <Button asChild>

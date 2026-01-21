@@ -65,13 +65,20 @@ export default function MarksEntryPage() {
           isDirty: false,
         });
       });
-      setScores(initialScores);
-      setHasChanges(false);
+
+      queueMicrotask(() => {
+        setScores(initialScores);
+        setHasChanges(false);
+      });
     }
   }, [students]);
 
   const updateScore = useCallback(
-    (studentId: string, field: "marksObtained" | "remarks", value: number | null | string) => {
+    (
+      studentId: string,
+      field: "marksObtained" | "remarks",
+      value: number | null | string
+    ) => {
       setScores((prev) => {
         const newScores = new Map(prev);
         const current = newScores.get(studentId);
@@ -95,7 +102,11 @@ export default function MarksEntryPage() {
         updateScore(studentId, "marksObtained", null);
       } else {
         const numValue = parseInt(value, 10);
-        if (!isNaN(numValue) && numValue >= 0 && numValue <= (exam?.totalMarks ?? 100)) {
+        if (
+          !isNaN(numValue) &&
+          numValue >= 0 &&
+          numValue <= (exam?.totalMarks ?? 100)
+        ) {
           updateScore(studentId, "marksObtained", numValue);
         }
       }
@@ -132,7 +143,11 @@ export default function MarksEntryPage() {
     );
   };
 
-  const getGrade = (marks: number | null, totalMarks: number, passingMarks: number): string => {
+  const getGrade = (
+    marks: number | null,
+    totalMarks: number,
+    passingMarks: number
+  ): string => {
     if (marks === null) return "AB";
     const percentage = (marks / totalMarks) * 100;
     if (percentage >= 90) return "A+";
@@ -150,7 +165,9 @@ export default function MarksEntryPage() {
   };
 
   if (!canManageExams) {
-    return <AccessDenied message="You don't have permission to enter marks." />;
+    return (
+      <AccessDenied description="You don't have permission to enter marks." />
+    );
   }
 
   if (examLoading || studentsLoading) {
@@ -178,7 +195,9 @@ export default function MarksEntryPage() {
   }
 
   const studentsList = students ?? [];
-  const dirtyCount = Array.from(scores.values()).filter((s) => s.isDirty).length;
+  const dirtyCount = Array.from(scores.values()).filter(
+    (s) => s.isDirty
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -191,7 +210,8 @@ export default function MarksEntryPage() {
               Enter Marks
             </h1>
             <p className="text-sm text-text-muted">
-              {exam.name} • {exam.batchName} • Total: {exam.totalMarks}, Pass: {exam.passingMarks}
+              {exam.name} • {exam.batchName} • Total: {exam.totalMarks}, Pass:{" "}
+              {exam.passingMarks}
             </p>
           </div>
         </div>
@@ -210,10 +230,7 @@ export default function MarksEntryPage() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!hasChanges || isSaving}
-          >
+          <Button onClick={handleSave} disabled={!hasChanges || isSaving}>
             <Save className="mr-2 h-4 w-4" />
             {isSaving ? "Saving..." : "Save All"}
           </Button>
@@ -264,7 +281,11 @@ export default function MarksEntryPage() {
                 const marks = scoreEntry?.marksObtained ?? null;
                 const remarks = scoreEntry?.remarks ?? "";
                 const isDirty = scoreEntry?.isDirty ?? false;
-                const grade = getGrade(marks, exam.totalMarks, exam.passingMarks);
+                const grade = getGrade(
+                  marks,
+                  exam.totalMarks,
+                  exam.passingMarks
+                );
                 const passed = isPassed(marks, exam.passingMarks);
 
                 return (
@@ -321,7 +342,11 @@ export default function MarksEntryPage() {
                         type="text"
                         value={remarks}
                         onChange={(e) =>
-                          updateScore(student.studentId, "remarks", e.target.value)
+                          updateScore(
+                            student.studentId,
+                            "remarks",
+                            e.target.value
+                          )
                         }
                         placeholder="Optional remarks"
                         className="w-full"
@@ -346,10 +371,7 @@ export default function MarksEntryPage() {
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-wrap gap-6 text-sm">
-              <SummaryItem
-                label="Total Students"
-                value={studentsList.length}
-              />
+              <SummaryItem label="Total Students" value={studentsList.length} />
               <SummaryItem
                 label="Marks Entered"
                 value={
