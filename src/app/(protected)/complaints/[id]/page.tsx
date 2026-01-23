@@ -35,6 +35,8 @@ import {
   SelectItem,
   Spinner,
   Checkbox,
+  Skeleton,
+  DetailPageHeaderSkeleton,
 } from "@/components/ui";
 import type { ComplaintStatus, ComplaintPriority } from "@/types/complaint";
 import {
@@ -56,8 +58,67 @@ export default function ComplaintDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Spinner className="h-8 w-8" />
+      <div className="space-y-6">
+        {/* Header Skeleton */}
+        <DetailPageHeaderSkeleton
+          showBackButton
+          badgeCount={2}
+          showActions={false}
+        />
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Main Content Skeleton */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Description Card Skeleton */}
+            <Card>
+              <CardContent className="p-6">
+                <Skeleton className="h-5 w-24 mb-4" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-4/5" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Comments Card Skeleton */}
+            <Card>
+              <CardContent className="p-6">
+                <Skeleton className="h-5 w-32 mb-4" />
+                <div className="space-y-4 mb-6">
+                  {Array.from({ length: 2 }).map((_, i) => (
+                    <div key={i} className="rounded-lg bg-surface-secondary p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Skeleton className="h-6 w-6 rounded-full" />
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                      <Skeleton className="h-4 w-full" />
+                    </div>
+                  ))}
+                </div>
+                <Skeleton className="h-20 w-full" />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar Skeleton */}
+          <div className="space-y-6">
+            <Card>
+              <CardContent className="p-6">
+                <Skeleton className="h-5 w-16 mb-4" />
+                <div className="space-y-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="space-y-1">
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     );
   }

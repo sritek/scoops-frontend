@@ -1,5 +1,5 @@
 export { apiClient } from "./client";
-export { useDashboard, useEnhancedDashboard, dashboardKeys } from "./dashboard";
+export { useDashboard, dashboardKeys } from "./dashboard";
 export { useStudents, useStudent, useCreateStudent, useUpdateStudent, useDeleteStudent, studentsKeys } from "./students";
 export { useBatches, useCreateBatch, useUpdateBatch, batchesKeys } from "./batches";
 export { useAttendance, useMarkAttendance, attendanceKeys } from "./attendance";

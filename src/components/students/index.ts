@@ -1,2 +1,11 @@
 export { StudentFeesTab } from "./StudentFeesTab";
 export { StudentHealthTab } from "./StudentHealthTab";
+export { StudentHealthForm } from "./StudentHealthForm";
+export { StudentFormStepper } from "./StudentFormStepper";
+export { StudentAttendanceTab } from "./StudentAttendanceTab";
+export { StudentLeaveTab } from "./StudentLeaveTab";
+export { StudentHomeworkTab } from "./StudentHomeworkTab";
+export { CreateFeeStructureDialog } from "./CreateFeeStructureDialog";
+export { AssignScholarshipDialog } from "./AssignScholarshipDialog";
+export { GenerateInstallmentsDialog } from "./GenerateInstallmentsDialog";
+export { IdCardDialog } from "./IdCardDialog";

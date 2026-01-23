@@ -131,7 +131,7 @@ export default function StudentsPage() {
               <p className="font-medium">{student.fullName}</p>
               {student.category && (
                 <p className="text-xs text-text-muted capitalize">
-                  {student.category}
+                  {student.category.toUpperCase()}
                   {student.isCwsn && " • CWSN"}
                 </p>
               )}

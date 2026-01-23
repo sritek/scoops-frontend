@@ -171,7 +171,10 @@ export function DataTable<TData, TValue>({
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+            <TableRow
+              key={row.id}
+              data-state={row.getIsSelected() && "selected"}
+            >
               {row.getVisibleCells().map((cell) => (
                 <TableCell
                   key={cell.id}
@@ -267,7 +270,10 @@ function ClientPagination<TData>({
       </div>
 
       {/* Pagination controls */}
-      <nav className="flex items-center justify-center gap-1" aria-label="Pagination">
+      <nav
+        className="flex items-center justify-center gap-1"
+        aria-label="Pagination"
+      >
         <Button
           variant="ghost"
           size="sm"
@@ -302,7 +308,7 @@ function ClientPagination<TData>({
 // Extend TanStack Table's column meta type
 declare module "@tanstack/react-table" {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface ColumnMeta<TData extends unknown, TValue> {
+  interface ColumnMeta<TData, TValue> {
     /** Additional className for the header cell */
     headerClassName?: string;
     /** Additional className for the body cells */

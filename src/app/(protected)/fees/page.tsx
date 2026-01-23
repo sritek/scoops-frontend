@@ -69,6 +69,7 @@ import {
   SelectContent,
   SelectItem,
   Skeleton,
+  CardGridSkeleton,
 } from "@/components/ui";
 import type {
   FeePlan,
@@ -1251,13 +1252,12 @@ function FeeComponentsTab() {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="py-6 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Skeleton className="h-9 w-32" />
+        </div>
+        <CardGridSkeleton count={6} columns={3} />
+      </div>
     );
   }
 
@@ -1417,13 +1417,12 @@ function ScholarshipsTab() {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="py-6 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Skeleton className="h-9 w-36" />
+        </div>
+        <CardGridSkeleton count={6} columns={3} />
+      </div>
     );
   }
 
@@ -1619,13 +1618,12 @@ function EMITemplatesTab() {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="py-6 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Skeleton className="h-9 w-32" />
+        </div>
+        <CardGridSkeleton count={6} columns={3} />
+      </div>
     );
   }
 

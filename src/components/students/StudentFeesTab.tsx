@@ -18,30 +18,44 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
+  Plus,
+  Trash2,
+  RefreshCw,
 } from "lucide-react";
 import {
   useStudentFeeSummary,
   useStudentScholarships,
   useStudentInstallments,
+  useRemoveStudentScholarship,
 } from "@/lib/api";
 import type { InstallmentStatus } from "@/types/fee";
+import { CreateFeeStructureDialog } from "./CreateFeeStructureDialog";
+import { AssignScholarshipDialog } from "./AssignScholarshipDialog";
+import { GenerateInstallmentsDialog } from "./GenerateInstallmentsDialog";
+import { toast } from "sonner";
 
 interface StudentFeesTabProps {
   studentId: string;
+  batchId?: string | null;
 }
 
 /**
  * Student Fees Tab Component
  *
- * Displays:
- * - Fee structure summary
- * - Applied scholarships
- * - Installment schedule
+ * Displays and manages:
+ * - Fee structure summary (with creation option)
+ * - Applied scholarships (with assign/remove)
+ * - Installment schedule (with generate option)
  */
-export function StudentFeesTab({ studentId }: StudentFeesTabProps) {
-  const { data: feeSummary, isLoading: summaryLoading } = useStudentFeeSummary(studentId);
-  const { data: scholarships, isLoading: scholarshipsLoading } = useStudentScholarships(studentId);
-  const { data: installments, isLoading: installmentsLoading } = useStudentInstallments(studentId);
+export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
+  const [showCreateFeeDialog, setShowCreateFeeDialog] = useState(false);
+  const [showAssignScholarshipDialog, setShowAssignScholarshipDialog] = useState(false);
+  const [showGenerateInstallmentsDialog, setShowGenerateInstallmentsDialog] = useState(false);
+
+  const { data: feeSummary, isLoading: summaryLoading, refetch: refetchSummary } = useStudentFeeSummary(studentId);
+  const { data: scholarships, isLoading: scholarshipsLoading, refetch: refetchScholarships } = useStudentScholarships(studentId);
+  const { data: installments, isLoading: installmentsLoading, refetch: refetchInstallments } = useStudentInstallments(studentId);
+  const removeScholarship = useRemoveStudentScholarship();
 
   const isLoading = summaryLoading || scholarshipsLoading || installmentsLoading;
 
@@ -57,43 +71,109 @@ export function StudentFeesTab({ studentId }: StudentFeesTabProps) {
     (i) => i.session.isCurrent
   )?.installments;
 
+  const hasFeeStructure = !!currentSessionStructure;
+  const hasInstallments = currentInstallments && currentInstallments.length > 0;
+
+  const handleRemoveScholarship = async (scholarshipId: string, scholarshipName: string) => {
+    if (!confirm(`Are you sure you want to remove the "${scholarshipName}" scholarship?`)) {
+      return;
+    }
+
+    try {
+      await removeScholarship.mutateAsync(scholarshipId);
+      toast.success("Scholarship removed successfully");
+      refetchScholarships();
+      refetchSummary();
+    } catch (error) {
+      toast.error("Failed to remove scholarship");
+    }
+  };
+
+  const handleFeeStructureSuccess = () => {
+    refetchSummary();
+    refetchInstallments();
+  };
+
+  const handleScholarshipSuccess = () => {
+    refetchScholarships();
+    refetchSummary();
+  };
+
+  const handleInstallmentsSuccess = () => {
+    refetchInstallments();
+    refetchSummary();
+  };
+
   return (
     <div className="space-y-6">
+      {/* No Fee Structure Alert */}
+      {!hasFeeStructure && (
+        <Card className="border-warning bg-warning/5">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-warning" />
+                <div>
+                  <p className="font-medium">No Fee Structure</p>
+                  <p className="text-sm text-text-muted">
+                    Create a fee structure to track payments for this student.
+                  </p>
+                </div>
+              </div>
+              <Button onClick={() => setShowCreateFeeDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Fee Structure
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Fee Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard
-          label="Gross Fee"
-          value={currentSessionStructure?.grossAmount ?? 0}
-          icon={<CreditCard className="h-4 w-4" />}
-        />
-        <SummaryCard
-          label="Scholarship"
-          value={currentSessionStructure?.scholarshipAmount ?? 0}
-          icon={<Award className="h-4 w-4" />}
-          variant="success"
-        />
-        <SummaryCard
-          label="Net Payable"
-          value={currentSessionStructure?.netAmount ?? 0}
-          icon={<TrendingDown className="h-4 w-4" />}
-          highlight
-        />
-        <SummaryCard
-          label="Pending"
-          value={currentSessionStructure?.pendingAmount ?? 0}
-          icon={<Clock className="h-4 w-4" />}
-          variant={currentSessionStructure?.pendingAmount ? "warning" : "success"}
-        />
-      </div>
+      {hasFeeStructure && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryCard
+            label="Gross Fee"
+            value={currentSessionStructure?.grossAmount ?? 0}
+            icon={<CreditCard className="h-4 w-4" />}
+          />
+          <SummaryCard
+            label="Scholarship"
+            value={currentSessionStructure?.scholarshipAmount ?? 0}
+            icon={<Award className="h-4 w-4" />}
+            variant="success"
+          />
+          <SummaryCard
+            label="Net Payable"
+            value={currentSessionStructure?.netAmount ?? 0}
+            icon={<TrendingDown className="h-4 w-4" />}
+            highlight
+          />
+          <SummaryCard
+            label="Pending"
+            value={currentSessionStructure?.pendingAmount ?? 0}
+            icon={<Clock className="h-4 w-4" />}
+            variant={currentSessionStructure?.pendingAmount ? "warning" : "success"}
+          />
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Scholarships */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="flex items-center gap-2 text-lg">
               <Award className="h-5 w-5 text-text-muted" />
               Applied Scholarships
             </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAssignScholarshipDialog(true)}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Assign
+            </Button>
           </CardHeader>
           <CardContent>
             {scholarships && scholarships.length > 0 ? (
@@ -103,7 +183,7 @@ export function StudentFeesTab({ studentId }: StudentFeesTabProps) {
                     key={ss.id}
                     className="flex items-center justify-between p-3 rounded-lg border border-border-subtle"
                   >
-                    <div>
+                    <div className="flex-1">
                       <p className="font-medium">{ss.scholarship.name}</p>
                       <p className="text-sm text-text-muted">
                         {ss.scholarship.type === "percentage"
@@ -113,9 +193,20 @@ export function StudentFeesTab({ studentId }: StudentFeesTabProps) {
                           : "Component Waiver"}
                       </p>
                     </div>
-                    <Badge variant="success">
-                      -₹{ss.discountAmount.toLocaleString()}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="success">
+                        -₹{ss.discountAmount.toLocaleString()}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveScholarship(ss.id, ss.scholarship.name)}
+                        disabled={removeScholarship.isPending}
+                        className="text-error hover:text-error hover:bg-error/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -123,6 +214,15 @@ export function StudentFeesTab({ studentId }: StudentFeesTabProps) {
               <div className="text-center py-6 text-text-muted">
                 <Award className="h-10 w-10 mx-auto mb-2 opacity-50" />
                 <p>No scholarships applied</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => setShowAssignScholarshipDialog(true)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Assign Scholarship
+                </Button>
               </div>
             )}
           </CardContent>
@@ -130,14 +230,24 @@ export function StudentFeesTab({ studentId }: StudentFeesTabProps) {
 
         {/* Installment Schedule */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="flex items-center gap-2 text-lg">
               <Calendar className="h-5 w-5 text-text-muted" />
               Installment Schedule
             </CardTitle>
+            {hasFeeStructure && !hasInstallments && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowGenerateInstallmentsDialog(true)}
+              >
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Generate
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
-            {currentInstallments && currentInstallments.length > 0 ? (
+            {hasInstallments ? (
               <div className="space-y-3">
                 {currentInstallments.map((inst) => (
                   <div
@@ -171,9 +281,21 @@ export function StudentFeesTab({ studentId }: StudentFeesTabProps) {
               <div className="text-center py-6 text-text-muted">
                 <Calendar className="h-10 w-10 mx-auto mb-2 opacity-50" />
                 <p>No installments generated</p>
-                <p className="text-sm mt-1">
-                  Contact the accounts office to set up your fee schedule.
-                </p>
+                {hasFeeStructure ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => setShowGenerateInstallmentsDialog(true)}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Generate Installments
+                  </Button>
+                ) : (
+                  <p className="text-sm mt-1">
+                    Create a fee structure first to generate installments.
+                  </p>
+                )}
               </div>
             )}
           </CardContent>
@@ -237,6 +359,33 @@ export function StudentFeesTab({ studentId }: StudentFeesTabProps) {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Dialogs */}
+      <CreateFeeStructureDialog
+        open={showCreateFeeDialog}
+        onOpenChange={setShowCreateFeeDialog}
+        studentId={studentId}
+        batchId={batchId ?? null}
+        onSuccess={handleFeeStructureSuccess}
+      />
+
+      <AssignScholarshipDialog
+        open={showAssignScholarshipDialog}
+        onOpenChange={setShowAssignScholarshipDialog}
+        studentId={studentId}
+        existingScholarshipIds={scholarships?.map((s) => s.scholarshipId) ?? []}
+        onSuccess={handleScholarshipSuccess}
+      />
+
+      {currentSessionStructure && (
+        <GenerateInstallmentsDialog
+          open={showGenerateInstallmentsDialog}
+          onOpenChange={setShowGenerateInstallmentsDialog}
+          studentFeeStructureId={currentSessionStructure.id}
+          netAmount={currentSessionStructure.netAmount}
+          onSuccess={handleInstallmentsSuccess}
+        />
       )}
     </div>
   );

@@ -17,7 +17,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useEnhancedDashboard } from "@/lib/api/dashboard";
+import { useDashboard } from "@/lib/api/dashboard";
 import {
   Card,
   CardHeader,
@@ -26,6 +26,9 @@ import {
   StatCard,
   StatCardSkeleton,
   Badge,
+  ChartSkeleton,
+  ListSkeleton,
+  Skeleton,
 } from "@/components/ui";
 import Link from "next/link";
 import {
@@ -110,7 +113,7 @@ function getActionItemIcon(type: ActionItem["type"]) {
  */
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { data, isLoading, error } = useEnhancedDashboard();
+  const { data, isLoading, error } = useDashboard();
 
   // Check what sections to show based on returned data
   const showAttendance = data?.attendance !== null;
@@ -243,7 +246,7 @@ export default function DashboardPage() {
       )}
 
       {/* Staff Attendance (Admin only) */}
-      {isAdmin && data?.staffAttendance && (
+      {isAdmin && (isLoading || data?.staffAttendance) && (
         <section aria-labelledby="staff-attendance-heading">
           <h2
             id="staff-attendance-heading"
@@ -251,32 +254,41 @@ export default function DashboardPage() {
           >
             Staff Attendance
           </h2>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <StatCard
-              label="Present"
-              value={data.staffAttendance.present ?? 0}
-              icon={UserCheck}
-              variant="success"
-            />
-            <StatCard
-              label="On Leave"
-              value={(data.staffAttendance.leave ?? 0) + (data.staffAttendance.halfDay ?? 0)}
-              icon={Clock}
-              variant="default"
-            />
-            <StatCard
-              label="Not Marked"
-              value={data.staffAttendance.notMarked ?? 0}
-              icon={AlertCircle}
-              variant={(data.staffAttendance.notMarked ?? 0) > 0 ? "warning" : "default"}
-            />
-            <StatCard
-              label="Total Staff"
-              value={data.staffAttendance.totalStaff ?? 0}
-              icon={Users}
-              variant="default"
-            />
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+            </div>
+          ) : data?.staffAttendance ? (
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <StatCard
+                label="Present"
+                value={data.staffAttendance.present ?? 0}
+                icon={UserCheck}
+                variant="success"
+              />
+              <StatCard
+                label="On Leave"
+                value={(data.staffAttendance.leave ?? 0) + (data.staffAttendance.halfDay ?? 0)}
+                icon={Clock}
+                variant="default"
+              />
+              <StatCard
+                label="Not Marked"
+                value={data.staffAttendance.notMarked ?? 0}
+                icon={AlertCircle}
+                variant={(data.staffAttendance.notMarked ?? 0) > 0 ? "warning" : "default"}
+              />
+              <StatCard
+                label="Total Staff"
+                value={data.staffAttendance.totalStaff ?? 0}
+                icon={Users}
+                variant="default"
+              />
+            </div>
+          ) : null}
         </section>
       )}
 
@@ -355,129 +367,159 @@ export default function DashboardPage() {
       </div>
 
       {/* Trends Section */}
-      {data?.trends && (
+      {(isLoading || data?.trends) && (
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Attendance Trend */}
-          {data.trends.attendance && data.trends.attendance.length > 0 && (
-            <section aria-labelledby="attendance-trend-heading">
-              <Card>
-                <CardHeader>
-                  <CardTitle id="attendance-trend-heading" className="text-base flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    Attendance Trend (Last 7 Days)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[200px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={data.trends.attendance}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border-subtle" />
-                        <XAxis
-                          dataKey="date"
-                          tickFormatter={(v) => formatDate(v)}
-                          className="text-xs"
-                          tick={{ fontSize: 10 }}
-                        />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip
-                          labelFormatter={(v) => formatDate(String(v))}
-                          formatter={(value, name) => [
-                            name === "percentage" ? `${value}%` : value,
-                            name === "percentage" ? "Attendance" : String(name),
-                          ]}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="percentage"
-                          stroke="#22c55e"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
-          )}
+          {isLoading ? (
+            <>
+              <ChartSkeleton height={200} titleWidth="w-48" />
+              <ChartSkeleton height={200} titleWidth="w-44" />
+            </>
+          ) : (
+            <>
+              {/* Attendance Trend */}
+              {data?.trends?.attendance && data.trends.attendance.length > 0 && (
+                <section aria-labelledby="attendance-trend-heading">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle id="attendance-trend-heading" className="text-base flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        Attendance Trend (Last 7 Days)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[200px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={data.trends.attendance}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border-subtle" />
+                            <XAxis
+                              dataKey="date"
+                              tickFormatter={(v) => formatDate(v)}
+                              className="text-xs"
+                              tick={{ fontSize: 10 }}
+                            />
+                            <YAxis tick={{ fontSize: 10 }} />
+                            <Tooltip
+                              labelFormatter={(v) => formatDate(String(v))}
+                              formatter={(value, name) => [
+                                name === "percentage" ? `${value}%` : value,
+                                name === "percentage" ? "Attendance" : String(name),
+                              ]}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="percentage"
+                              stroke="#22c55e"
+                              strokeWidth={2}
+                              dot={false}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </section>
+              )}
 
-          {/* Fee Collection Trend */}
-          {data.trends.feeCollection && data.trends.feeCollection.length > 0 && (
-            <section aria-labelledby="fee-trend-heading">
-              <Card>
-                <CardHeader>
-                  <CardTitle id="fee-trend-heading" className="text-base flex items-center gap-2">
-                    <IndianRupee className="h-4 w-4" />
-                    Fee Collection (Last 7 Days)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[200px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={data.trends.feeCollection}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border-subtle" />
-                        <XAxis
-                          dataKey="date"
-                          tickFormatter={(v) => formatDate(v)}
-                          tick={{ fontSize: 10 }}
-                        />
-                        <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v / 1000}k`} />
-                        <Tooltip
-                          labelFormatter={(v) => formatDate(String(v))}
-                          formatter={(value) => [formatCurrency(Number(value)), "Collected"]}
-                        />
-                        <Bar dataKey="amount" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
+              {/* Fee Collection Trend */}
+              {data?.trends?.feeCollection && data.trends.feeCollection.length > 0 && (
+                <section aria-labelledby="fee-trend-heading">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle id="fee-trend-heading" className="text-base flex items-center gap-2">
+                        <IndianRupee className="h-4 w-4" />
+                        Fee Collection (Last 7 Days)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[200px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={data.trends.feeCollection}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border-subtle" />
+                            <XAxis
+                              dataKey="date"
+                              tickFormatter={(v) => formatDate(v)}
+                              tick={{ fontSize: 10 }}
+                            />
+                            <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v / 1000}k`} />
+                            <Tooltip
+                              labelFormatter={(v) => formatDate(String(v))}
+                              formatter={(value) => [formatCurrency(Number(value)), "Collected"]}
+                            />
+                            <Bar dataKey="amount" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </section>
+              )}
+            </>
           )}
         </div>
       )}
 
       {/* Upcoming Birthdays */}
-      {data?.upcomingBirthdays && data.upcomingBirthdays.length > 0 && (
+      {(isLoading || (data?.upcomingBirthdays && data.upcomingBirthdays.length > 0)) && (
         <section aria-labelledby="birthdays-heading">
-          <Card>
-            <CardHeader>
-              <CardTitle id="birthdays-heading" className="text-base flex items-center gap-2">
-                <Cake className="h-4 w-4" />
-                Upcoming Birthdays
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="divide-y divide-border-subtle">
-                {data.upcomingBirthdays.slice(0, 5).map((birthday) => (
-                  <li
-                    key={birthday.id}
-                    className="flex items-center justify-between py-2"
-                  >
-                    <div>
-                      <span className="text-sm font-medium text-text-primary">
-                        {birthday.name}
-                      </span>
-                      {birthday.batchName && (
-                        <span className="text-xs text-text-muted ml-2">
-                          ({birthday.batchName})
-                        </span>
-                      )}
+          {isLoading ? (
+            <Card>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-5 w-40" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center justify-between py-2 border-b border-border-subtle last:border-0">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                      <Skeleton className="h-5 w-16 rounded-full" />
                     </div>
-                    <Badge
-                      variant={birthday.daysUntil === 0 ? "success" : "default"}
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : data?.upcomingBirthdays && data.upcomingBirthdays.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle id="birthdays-heading" className="text-base flex items-center gap-2">
+                  <Cake className="h-4 w-4" />
+                  Upcoming Birthdays
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="divide-y divide-border-subtle">
+                  {data.upcomingBirthdays.slice(0, 5).map((birthday) => (
+                    <li
+                      key={birthday.id}
+                      className="flex items-center justify-between py-2"
                     >
-                      {birthday.daysUntil === 0
-                        ? "Today!"
-                        : birthday.daysUntil === 1
-                        ? "Tomorrow"
-                        : `In ${birthday.daysUntil} days`}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+                      <div>
+                        <span className="text-sm font-medium text-text-primary">
+                          {birthday.name}
+                        </span>
+                        {birthday.batchName && (
+                          <span className="text-xs text-text-muted ml-2">
+                            ({birthday.batchName})
+                          </span>
+                        )}
+                      </div>
+                      <Badge
+                        variant={birthday.daysUntil === 0 ? "success" : "default"}
+                      >
+                        {birthday.daysUntil === 0
+                          ? "Today!"
+                          : birthday.daysUntil === 1
+                          ? "Tomorrow"
+                          : `In ${birthday.daysUntil} days`}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
         </section>
       )}
 

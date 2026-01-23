@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Plus, Trash2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, AlertCircle, User, Users, Heart } from "lucide-react";
 import { useStudent, useUpdateStudent } from "@/lib/api/students";
 import { useBatches } from "@/lib/api/batches";
+import { useStudentHealth, useUpdateStudentHealth } from "@/lib/api/health";
 import {
   studentFormSchema,
   defaultParentValues,
@@ -17,6 +18,7 @@ import {
   type StudentFormData,
 } from "@/lib/validations/student";
 import { FormField } from "@/components/forms";
+import { StudentHealthForm } from "@/components/students";
 import {
   Button,
   Input,
@@ -33,7 +35,12 @@ import {
   Skeleton,
   PhotoUpload,
   Label,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
 } from "@/components/ui";
+import { toast } from "sonner";
 
 /**
  * Edit Student Page
@@ -54,6 +61,7 @@ export default function EditStudentPage({
     isLoading: isLoadingStudent,
     error: studentError,
   } = useStudent(id);
+  const { data: healthData, isLoading: isLoadingHealth } = useStudentHealth(id);
   const { data: batchesData } = useBatches({ limit: 100 });
   const batches = batchesData?.data ?? [];
 
@@ -62,10 +70,12 @@ export default function EditStudentPage({
     isPending,
     error: submitError,
   } = useUpdateStudent();
+  const { mutate: updateHealth, isPending: isUpdatingHealth } = useUpdateStudentHealth();
 
   const initialValues = useMemo(
-    () =>
-      ({
+    () => {
+      const health = healthData?.health;
+      return {
         firstName: student?.firstName || "",
         lastName: student?.lastName || "",
         gender: student?.gender || undefined,
@@ -84,8 +94,45 @@ export default function EditStudentPage({
             photoUrl: p.photoUrl || null,
             isPrimaryContact: p.isPrimaryContact || false,
           })) || [],
-      } satisfies StudentFormData),
-    [student]
+        health: health
+          ? {
+              bloodGroup: health.bloodGroup,
+              heightCm: health.heightCm,
+              weightKg: health.weightKg,
+              allergies: health.allergies,
+              chronicConditions: health.chronicConditions,
+              currentMedications: health.currentMedications,
+              pastSurgeries: health.pastSurgeries,
+              visionLeft: health.visionLeft,
+              visionRight: health.visionRight,
+              usesGlasses: health.usesGlasses,
+              hearingStatus: health.hearingStatus,
+              usesHearingAid: health.usesHearingAid,
+              physicalDisability: health.physicalDisability,
+              mobilityAid: health.mobilityAid,
+              vaccinationRecords: health.vaccinationRecords,
+              hasInsurance: health.hasInsurance,
+              insuranceProvider: health.insuranceProvider,
+              insurancePolicyNo: health.insurancePolicyNo,
+              insuranceExpiry: health.insuranceExpiry
+                ? health.insuranceExpiry.split("T")[0]
+                : null,
+              emergencyMedicalNotes: health.emergencyMedicalNotes,
+              familyDoctorName: health.familyDoctorName,
+              familyDoctorPhone: health.familyDoctorPhone,
+              preferredHospital: health.preferredHospital,
+              lastCheckupDate: health.lastCheckupDate
+                ? health.lastCheckupDate.split("T")[0]
+                : null,
+              nextCheckupDue: health.nextCheckupDue
+                ? health.nextCheckupDue.split("T")[0]
+                : null,
+              dietaryRestrictions: health.dietaryRestrictions,
+            }
+          : undefined,
+      } satisfies StudentFormData;
+    },
+    [student, healthData]
   );
 
   const {
@@ -130,17 +177,50 @@ export default function EditStudentPage({
   };
 
   const onSubmit = (data: StudentFormData) => {
-    updateStudent(
-      { id, data },
-      {
-        onSuccess: () => {
-          router.push(`/students/${id}`);
-        },
+    // Extract health data before updating student
+    const { health, ...studentData } = data;
+
+    // Update student and health in parallel
+    const updatePromises: Promise<unknown>[] = [
+      new Promise((resolve, reject) => {
+        updateStudent(
+          { id, data: studentData },
+          {
+            onSuccess: resolve,
+            onError: reject,
+          }
+        );
+      }),
+    ];
+
+    // Update health data if provided
+    if (health) {
+      // Remove undefined values and empty strings
+      const healthData = Object.fromEntries(
+        Object.entries(health).filter(([_, v]) => v !== undefined && v !== "")
+      );
+
+      if (Object.keys(healthData).length > 0) {
+        updatePromises.push(
+          updateHealth.mutateAsync({
+            studentId: id,
+            data: healthData,
+          })
+        );
       }
-    );
+    }
+
+    Promise.all(updatePromises)
+      .then(() => {
+        toast.success("Student updated successfully");
+        router.push(`/students/${id}`);
+      })
+      .catch(() => {
+        toast.error("Failed to update student");
+      });
   };
 
-  if (isLoadingStudent) {
+  if (isLoadingStudent || isLoadingHealth) {
     return <EditStudentSkeleton />;
   }
 
@@ -203,8 +283,25 @@ export default function EditStudentPage({
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* Student Information */}
-        <Card>
+        <Tabs defaultValue="student" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="student" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Student Info
+            </TabsTrigger>
+            <TabsTrigger value="parents" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Parents
+            </TabsTrigger>
+            <TabsTrigger value="health" className="flex items-center gap-2">
+              <Heart className="h-4 w-4" />
+              Health
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Student Information Tab */}
+          <TabsContent value="student" className="mt-6">
+            <Card>
           <CardHeader>
             <CardTitle className="text-lg">Student Information</CardTitle>
           </CardHeader>
@@ -390,9 +487,11 @@ export default function EditStudentPage({
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
 
-        {/* Parent / Guardian Section */}
-        <Card>
+          {/* Parent / Guardian Tab */}
+          <TabsContent value="parents" className="mt-6">
+            <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Parent / Guardian</CardTitle>
             <Button
@@ -435,14 +534,25 @@ export default function EditStudentPage({
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+
+          {/* Health Information Tab */}
+          <TabsContent value="health" className="mt-6">
+            <StudentHealthForm
+              control={control}
+              register={register}
+              errors={errors}
+            />
+          </TabsContent>
+        </Tabs>
 
         {/* Form Actions */}
         <div className="flex justify-end gap-3">
           <Button type="button" variant="secondary" asChild>
             <Link href={`/students/${id}`}>Cancel</Link>
           </Button>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? "Saving..." : "Save Changes"}
+          <Button type="submit" disabled={isPending || isUpdatingHealth}>
+            {isPending || isUpdatingHealth ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </form>

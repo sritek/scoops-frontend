@@ -16,6 +16,9 @@ import {
   BookOpen,
   CreditCard,
   Heart,
+  Calendar,
+  CalendarDays,
+  IdCard,
 } from "lucide-react";
 import { useDeleteStudent, useStudent } from "@/lib/api/students";
 import { useStudentReportCard, downloadReportCardPDF } from "@/lib/api";
@@ -36,7 +39,14 @@ import {
   TabsContent,
 } from "@/components/ui";
 import type { ExamType } from "@/types/exam";
-import { StudentFeesTab, StudentHealthTab } from "@/components/students";
+import {
+  StudentFeesTab,
+  StudentHealthTab,
+  StudentAttendanceTab,
+  StudentLeaveTab,
+  StudentHomeworkTab,
+  IdCardDialog,
+} from "@/components/students";
 
 /**
  * Student Detail Page
@@ -58,6 +68,7 @@ export default function StudentDetailPage({
     useStudentReportCard(id);
   const { mutate: deactivateStudent, isPending } = useDeleteStudent();
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
+  const [showIdCard, setShowIdCard] = useState(false);
   const { can } = usePermissions();
 
   const canEditStudent = can("STUDENT_EDIT");
@@ -159,32 +170,38 @@ export default function StudentDetailPage({
           </div>
         </div>
 
-        {canEditStudent && (
-          <div className="flex gap-2">
-            <Button asChild>
-              <Link href={`/students/${id}/edit`}>
-                <Edit className="mr-2 h-4 w-4" aria-hidden="true" />
-                Edit Student
-              </Link>
-            </Button>
-            {student.status === "active" && (
-              <Button
-                variant="destructive"
-                isLoading={isPending}
-                disabled={isPending}
-                onClick={handleDeactivate}
-              >
-                <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
-                Deactivate
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowIdCard(true)}>
+            <IdCard className="mr-2 h-4 w-4" aria-hidden="true" />
+            ID Card
+          </Button>
+          {canEditStudent && (
+            <>
+              <Button asChild>
+                <Link href={`/students/${id}/edit`}>
+                  <Edit className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Edit Student
+                </Link>
               </Button>
-            )}
-          </div>
-        )}
+              {student.status === "active" && (
+                <Button
+                  variant="destructive"
+                  isLoading={isPending}
+                  disabled={isPending}
+                  onClick={handleDeactivate}
+                >
+                  <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Deactivate
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Tabbed Content */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Overview
@@ -192,6 +209,18 @@ export default function StudentDetailPage({
           <TabsTrigger value="fees" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
             Fees
+          </TabsTrigger>
+          <TabsTrigger value="attendance" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Attendance
+          </TabsTrigger>
+          <TabsTrigger value="leave" className="flex items-center gap-2">
+            <CalendarDays className="h-4 w-4" />
+            Leave
+          </TabsTrigger>
+          <TabsTrigger value="homework" className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4" />
+            Homework
           </TabsTrigger>
           <TabsTrigger value="health" className="flex items-center gap-2">
             <Heart className="h-4 w-4" />
@@ -490,7 +519,30 @@ export default function StudentDetailPage({
 
         {/* Fees Tab */}
         <TabsContent value="fees" className="mt-6">
-          <StudentFeesTab studentId={id} />
+          <StudentFeesTab studentId={id} batchId={student.batchId} />
+        </TabsContent>
+
+        {/* Attendance Tab */}
+        <TabsContent value="attendance" className="mt-6">
+          <StudentAttendanceTab
+            studentId={id}
+            batchId={student.batchId}
+            batchName={student.batchName}
+          />
+        </TabsContent>
+
+        {/* Leave Tab */}
+        <TabsContent value="leave" className="mt-6">
+          <StudentLeaveTab studentId={id} />
+        </TabsContent>
+
+        {/* Homework Tab */}
+        <TabsContent value="homework" className="mt-6">
+          <StudentHomeworkTab
+            studentId={id}
+            batchId={student.batchId}
+            batchName={student.batchName}
+          />
         </TabsContent>
 
         {/* Health Tab */}
@@ -498,6 +550,21 @@ export default function StudentDetailPage({
           <StudentHealthTab studentId={id} />
         </TabsContent>
       </Tabs>
+
+      {/* ID Card Dialog */}
+      <IdCardDialog
+        open={showIdCard}
+        onOpenChange={setShowIdCard}
+        student={{
+          id: student.id,
+          firstName: student.firstName,
+          lastName: student.lastName,
+          fullName: student.fullName,
+          photoUrl: student.photoUrl,
+          batchName: student.batchName,
+          admissionYear: student.admissionYear,
+        }}
+      />
     </div>
   );
 }

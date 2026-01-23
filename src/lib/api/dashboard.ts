@@ -1,29 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "./client";
-import type { DashboardData, EnhancedDashboardData } from "@/types/dashboard";
+import type { EnhancedDashboardData } from "@/types/dashboard";
 
 /**
  * Query key for dashboard data
  */
 export const dashboardKeys = {
   all: ["dashboard"] as const,
-  summary: () => [...dashboardKeys.all, "summary"] as const,
-  enhanced: () => [...dashboardKeys.all, "enhanced"] as const,
 };
 
 /**
- * Fetch dashboard summary from API
+ * Fetch dashboard from API
+ * Returns role-specific dashboard with attendance, fees, action items, trends, and more
  */
-async function fetchDashboard(): Promise<DashboardData> {
-  const response = await apiClient.get<{ data: DashboardData }>("/dashboard");
-  return response.data;
-}
-
-/**
- * Fetch enhanced dashboard from API
- */
-async function fetchEnhancedDashboard(): Promise<EnhancedDashboardData> {
-  const response = await apiClient.get<{ data: EnhancedDashboardData }>("/dashboard/enhanced");
+async function fetchDashboard(): Promise<EnhancedDashboardData> {
+  const response = await apiClient.get<{ data: EnhancedDashboardData }>("/dashboard");
   return response.data;
 }
 
@@ -35,29 +26,21 @@ async function fetchEnhancedDashboard(): Promise<EnhancedDashboardData> {
  * - Background refetching
  * - Loading/error states
  *
+ * Returns role-specific data:
+ * - Admin/Staff: Full dashboard (attendance, fees, trends, action items, birthdays, staff attendance)
+ * - Teacher: Own batch attendance + fees + birthdays
+ * - Accounts: Fees only + collection trends
+ *
  * @example
  * const { data, isLoading, error } = useDashboard();
  */
 export function useDashboard() {
   return useQuery({
-    queryKey: dashboardKeys.summary(),
+    queryKey: dashboardKeys.all,
     queryFn: fetchDashboard,
-    // Refetch every 5 minutes
-    staleTime: 5 * 60 * 1000,
-    // Keep data fresh
-    refetchOnWindowFocus: true,
-  });
-}
-
-/**
- * Hook to fetch enhanced dashboard data with action items and trends
- */
-export function useEnhancedDashboard() {
-  return useQuery({
-    queryKey: dashboardKeys.enhanced(),
-    queryFn: fetchEnhancedDashboard,
     // Refetch every 2 minutes
     staleTime: 2 * 60 * 1000,
+    // Keep data fresh
     refetchOnWindowFocus: true,
   });
 }
