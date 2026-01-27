@@ -3,8 +3,9 @@ import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export interface CheckboxProps
-  extends React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root> {}
+export interface CheckboxProps extends React.ComponentPropsWithoutRef<
+  typeof CheckboxPrimitive.Root
+> {}
 
 /**
  * Checkbox component
@@ -28,6 +29,7 @@ const Checkbox = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CheckboxPrimitive.Root
     ref={ref}
+    type="button" // Prevents form submission when Checkbox is inside a form
     className={cn(
       // Base styles - visual size 20px, touch target 44px via padding
       "peer relative h-5 w-5 shrink-0",
@@ -42,7 +44,7 @@ const Checkbox = React.forwardRef<
       "data-[state=checked]:text-white",
       // Disabled state
       "disabled:cursor-not-allowed disabled:opacity-50",
-      className
+      className,
     )}
     {...props}
   >

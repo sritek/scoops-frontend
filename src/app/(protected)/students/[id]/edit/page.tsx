@@ -5,10 +5,18 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Plus, Trash2, AlertCircle, User, Users, Heart } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  AlertCircle,
+  User,
+  Users,
+  Heart,
+} from "lucide-react";
 import { useStudent, useUpdateStudent } from "@/lib/api/students";
 import { useBatches } from "@/lib/api/batches";
-import { useStudentHealth, useUpdateStudentHealth } from "@/lib/api/health";
+import { useStudentHealth } from "@/lib/api/health";
 import {
   studentFormSchema,
   defaultParentValues,
@@ -43,6 +51,60 @@ import {
 import { toast } from "sonner";
 
 /**
+ * Utility function to detect changed fields between current and initial values
+ * Only includes fields that have actually changed
+ */
+function getChangedFields<T extends Record<string, any>>(
+  current: T,
+  initial: T,
+): Partial<T> {
+  const changed: Partial<T> = {};
+
+  for (const key in current) {
+    if (!(key in current)) continue;
+
+    const currentVal = current[key];
+    const initialVal = initial[key];
+
+    // Handle nested objects (health)
+    if (key === "health") {
+      if (currentVal && typeof currentVal === "object") {
+        const healthChanged = getChangedFields(
+          currentVal,
+          (initialVal as Record<string, any>) || {},
+        );
+        if (Object.keys(healthChanged).length > 0) {
+          changed[key] = healthChanged as T[typeof key];
+        }
+      } else if (currentVal !== initialVal) {
+        changed[key] = currentVal;
+      }
+      continue;
+    }
+
+    // Handle arrays (parents) - compare by JSON stringify
+    if (Array.isArray(currentVal) && Array.isArray(initialVal)) {
+      if (JSON.stringify(currentVal) !== JSON.stringify(initialVal)) {
+        changed[key] = currentVal;
+      }
+      continue;
+    }
+
+    // Handle primitive values
+    if (currentVal !== initialVal) {
+      // Normalize null/undefined for comparison
+      const normalizedCurrent = currentVal ?? null;
+      const normalizedInitial = initialVal ?? null;
+      if (normalizedCurrent !== normalizedInitial) {
+        changed[key] = currentVal;
+      }
+    }
+  }
+
+  return changed;
+}
+
+/**
  * Edit Student Page
  *
  * Reuses form components from the new student page.
@@ -70,70 +132,66 @@ export default function EditStudentPage({
     isPending,
     error: submitError,
   } = useUpdateStudent();
-  const { mutate: updateHealth, isPending: isUpdatingHealth } = useUpdateStudentHealth();
 
-  const initialValues = useMemo(
-    () => {
-      const health = healthData?.health;
-      return {
-        firstName: student?.firstName || "",
-        lastName: student?.lastName || "",
-        gender: student?.gender || undefined,
-        dob: student?.dob ? student?.dob.split("T")[0] : undefined,
-        category: student?.category || undefined,
-        isCwsn: student?.isCwsn || false,
-        photoUrl: student?.photoUrl || null,
-        admissionYear: student?.admissionYear || new Date().getFullYear(),
-        batchId: student?.batchId || undefined,
-        parents:
-          student?.parents?.map((p) => ({
-            firstName: p.firstName,
-            lastName: p.lastName,
-            phone: p.phone,
-            relation: p.relation,
-            photoUrl: p.photoUrl || null,
-            isPrimaryContact: p.isPrimaryContact || false,
-          })) || [],
-        health: health
-          ? {
-              bloodGroup: health.bloodGroup,
-              heightCm: health.heightCm,
-              weightKg: health.weightKg,
-              allergies: health.allergies,
-              chronicConditions: health.chronicConditions,
-              currentMedications: health.currentMedications,
-              pastSurgeries: health.pastSurgeries,
-              visionLeft: health.visionLeft,
-              visionRight: health.visionRight,
-              usesGlasses: health.usesGlasses,
-              hearingStatus: health.hearingStatus,
-              usesHearingAid: health.usesHearingAid,
-              physicalDisability: health.physicalDisability,
-              mobilityAid: health.mobilityAid,
-              vaccinationRecords: health.vaccinationRecords,
-              hasInsurance: health.hasInsurance,
-              insuranceProvider: health.insuranceProvider,
-              insurancePolicyNo: health.insurancePolicyNo,
-              insuranceExpiry: health.insuranceExpiry
-                ? health.insuranceExpiry.split("T")[0]
-                : null,
-              emergencyMedicalNotes: health.emergencyMedicalNotes,
-              familyDoctorName: health.familyDoctorName,
-              familyDoctorPhone: health.familyDoctorPhone,
-              preferredHospital: health.preferredHospital,
-              lastCheckupDate: health.lastCheckupDate
-                ? health.lastCheckupDate.split("T")[0]
-                : null,
-              nextCheckupDue: health.nextCheckupDue
-                ? health.nextCheckupDue.split("T")[0]
-                : null,
-              dietaryRestrictions: health.dietaryRestrictions,
-            }
-          : undefined,
-      } satisfies StudentFormData;
-    },
-    [student, healthData]
-  );
+  const initialValues = useMemo(() => {
+    const health = healthData?.health;
+    return {
+      firstName: student?.firstName || "",
+      lastName: student?.lastName || "",
+      gender: student?.gender || null,
+      dob: student?.dob ? student?.dob.split("T")[0] : "",
+      category: student?.category || null,
+      isCwsn: student?.isCwsn || false,
+      photoUrl: student?.photoUrl || null,
+      admissionYear: student?.admissionYear || new Date().getFullYear(),
+      batchId: student?.batchId || undefined,
+      parents:
+        student?.parents?.map((p) => ({
+          firstName: p.firstName,
+          lastName: p.lastName,
+          phone: p.phone,
+          relation: p.relation,
+          photoUrl: p.photoUrl || null,
+          isPrimaryContact: p.isPrimaryContact || false,
+        })) || [],
+      health: health
+        ? {
+            bloodGroup: health.bloodGroup,
+            heightCm: health.heightCm,
+            weightKg: health.weightKg,
+            allergies: health.allergies,
+            chronicConditions: health.chronicConditions,
+            currentMedications: health.currentMedications,
+            pastSurgeries: health.pastSurgeries,
+            visionLeft: health.visionLeft,
+            visionRight: health.visionRight,
+            usesGlasses: health.usesGlasses,
+            hearingStatus: health.hearingStatus,
+            usesHearingAid: health.usesHearingAid,
+            physicalDisability: health.physicalDisability,
+            mobilityAid: health.mobilityAid,
+            vaccinationRecords: health.vaccinationRecords,
+            hasInsurance: health.hasInsurance,
+            insuranceProvider: health.insuranceProvider,
+            insurancePolicyNo: health.insurancePolicyNo,
+            insuranceExpiry: health.insuranceExpiry
+              ? health.insuranceExpiry.split("T")[0]
+              : null,
+            emergencyMedicalNotes: health.emergencyMedicalNotes,
+            familyDoctorName: health.familyDoctorName,
+            familyDoctorPhone: health.familyDoctorPhone,
+            preferredHospital: health.preferredHospital,
+            lastCheckupDate: health.lastCheckupDate
+              ? health.lastCheckupDate.split("T")[0]
+              : null,
+            nextCheckupDue: health.nextCheckupDue
+              ? health.nextCheckupDue.split("T")[0]
+              : null,
+            dietaryRestrictions: health.dietaryRestrictions,
+          }
+        : undefined,
+    } satisfies StudentFormData;
+  }, [student, healthData]);
 
   const {
     register,
@@ -177,47 +235,48 @@ export default function EditStudentPage({
   };
 
   const onSubmit = (data: StudentFormData) => {
-    // Extract health data before updating student
-    const { health, ...studentData } = data;
+    // Get only changed fields
+    const changedFields = getChangedFields(data, initialValues);
 
-    // Update student and health in parallel
-    const updatePromises: Promise<unknown>[] = [
-      new Promise((resolve, reject) => {
-        updateStudent(
-          { id, data: studentData },
-          {
-            onSuccess: resolve,
-            onError: reject,
-          }
-        );
-      }),
-    ];
-
-    // Update health data if provided
-    if (health) {
-      // Remove undefined values and empty strings
-      const healthData = Object.fromEntries(
-        Object.entries(health).filter(([_, v]) => v !== undefined && v !== "")
+    // If health changed, include it in the payload
+    if (changedFields.health) {
+      // Check if health has actual values (not all null/undefined)
+      const healthHasValues = Object.values(changedFields.health).some(
+        (v) => v !== undefined && v !== null && v !== "",
       );
-
-      if (Object.keys(healthData).length > 0) {
-        updatePromises.push(
-          updateHealth.mutateAsync({
-            studentId: id,
-            data: healthData,
-          })
-        );
+      if (!healthHasValues) {
+        // Remove health from changed fields if it's all empty
+        delete changedFields.health;
       }
     }
 
-    Promise.all(updatePromises)
-      .then(() => {
-        toast.success("Student updated successfully");
-        router.push(`/students/${id}`);
-      })
-      .catch(() => {
-        toast.error("Failed to update student");
-      });
+    // Remove undefined values
+    const cleanPayload = Object.fromEntries(
+      Object.entries(changedFields).filter(([, v]) => v !== undefined),
+    );
+
+    // If no changes, show message and return
+    if (Object.keys(cleanPayload).length === 0) {
+      toast.info("No changes to save");
+      return;
+    }
+
+    updateStudent(
+      { id, data: cleanPayload },
+      {
+        onSuccess: () => {
+          toast.success("Student updated successfully");
+          router.push(`/students/${id}`);
+        },
+        onError: (error) => {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Failed to update student. Please try again.",
+          );
+        },
+      },
+    );
   };
 
   if (isLoadingStudent || isLoadingHealth) {
@@ -302,238 +361,239 @@ export default function EditStudentPage({
           {/* Student Information Tab */}
           <TabsContent value="student" className="mt-6">
             <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Student Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Photo */}
-            <div className="flex flex-col items-center sm:items-start gap-2 pb-4 border-b border-border-subtle">
-              <Label>Student Photo</Label>
-              <Controller
-                name="photoUrl"
-                control={control}
-                render={({ field }) => (
-                  <PhotoUpload
-                    value={field.value}
-                    onChange={field.onChange}
-                    size="md"
-                    label="Student photo"
+              <CardHeader>
+                <CardTitle className="text-lg">Student Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Photo */}
+                <div className="flex flex-col items-center sm:items-start gap-2 pb-4 border-b border-border-subtle">
+                  <Label>Student Photo</Label>
+                  <Controller
+                    name="photoUrl"
+                    control={control}
+                    render={({ field }) => (
+                      <PhotoUpload
+                        value={field.value}
+                        onChange={field.onChange}
+                        size="md"
+                        label="Student photo"
+                      />
+                    )}
                   />
-                )}
-              />
-            </div>
+                </div>
 
-            {/* Name row */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
-                id="firstName"
-                label="First Name"
-                required
-                error={errors.firstName?.message}
-              >
-                <Input
-                  id="firstName"
-                  placeholder="Enter first name"
-                  {...register("firstName")}
-                />
-              </FormField>
-
-              <FormField
-                id="lastName"
-                label="Last Name"
-                required
-                error={errors.lastName?.message}
-              >
-                <Input
-                  id="lastName"
-                  placeholder="Enter last name"
-                  {...register("lastName")}
-                />
-              </FormField>
-            </div>
-
-            {/* Gender and DOB */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
-                id="gender"
-                label="Gender"
-                error={errors.gender?.message}
-              >
-                <Controller
-                  name="gender"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value ?? ""}
-                      onValueChange={field.onChange}
-                    >
-                      <SelectTrigger id="gender">
-                        <SelectValue placeholder="Select gender" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {studentGenders.map((gender) => (
-                          <SelectItem key={gender} value={gender}>
-                            {gender.charAt(0).toUpperCase() + gender.slice(1)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </FormField>
-
-              <FormField
-                id="dob"
-                label="Date of Birth"
-                error={errors.dob?.message}
-              >
-                <Input id="dob" type="date" {...register("dob")} />
-              </FormField>
-            </div>
-
-            {/* Category and Admission Year */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
-                id="category"
-                label="Category"
-                error={errors.category?.message}
-              >
-                <Controller
-                  name="category"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value ?? ""}
-                      onValueChange={field.onChange}
-                    >
-                      <SelectTrigger id="category">
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {studentCategories.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category.toUpperCase()}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </FormField>
-
-              <FormField
-                id="admissionYear"
-                label="Admission Year"
-                required
-                error={errors.admissionYear?.message}
-              >
-                <Input
-                  id="admissionYear"
-                  type="number"
-                  placeholder="e.g., 2024"
-                  {...register("admissionYear", { valueAsNumber: true })}
-                />
-              </FormField>
-            </div>
-
-            {/* Batch Selection */}
-            <FormField
-              id="batchId"
-              label="Batch"
-              error={errors.batchId?.message}
-            >
-              <Controller
-                name="batchId"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value ?? ""}
-                    onValueChange={field.onChange}
+                {/* Name row */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    id="firstName"
+                    label="First Name"
+                    required
+                    error={errors.firstName?.message}
                   >
-                    <SelectTrigger id="batchId">
-                      <SelectValue placeholder="Select batch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {batches.map((batch) => (
-                        <SelectItem key={batch.id} value={batch.id}>
-                          {batch.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </FormField>
+                    <Input
+                      id="firstName"
+                      placeholder="Enter first name"
+                      {...register("firstName")}
+                    />
+                  </FormField>
 
-            {/* CWSN checkbox */}
-            <div className="flex items-center gap-3">
-              <Controller
-                name="isCwsn"
-                control={control}
-                render={({ field }) => (
-                  <Checkbox
-                    id="isCwsn"
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
+                  <FormField
+                    id="lastName"
+                    label="Last Name"
+                    required
+                    error={errors.lastName?.message}
+                  >
+                    <Input
+                      id="lastName"
+                      placeholder="Enter last name"
+                      {...register("lastName")}
+                    />
+                  </FormField>
+                </div>
+
+                {/* Gender and DOB */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    id="gender"
+                    label="Gender"
+                    error={errors.gender?.message}
+                  >
+                    <Controller
+                      name="gender"
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          value={field.value ?? ""}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger id="gender">
+                            <SelectValue placeholder="Select gender" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {studentGenders.map((gender) => (
+                              <SelectItem key={gender} value={gender}>
+                                {gender.charAt(0).toUpperCase() +
+                                  gender.slice(1)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </FormField>
+
+                  <FormField
+                    id="dob"
+                    label="Date of Birth"
+                    error={errors.dob?.message}
+                  >
+                    <Input id="dob" type="date" {...register("dob")} />
+                  </FormField>
+                </div>
+
+                {/* Category and Admission Year */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    id="category"
+                    label="Category"
+                    error={errors.category?.message}
+                  >
+                    <Controller
+                      name="category"
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          value={field.value ?? ""}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger id="category">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {studentCategories.map((category) => (
+                              <SelectItem key={category} value={category}>
+                                {category.toUpperCase()}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </FormField>
+
+                  <FormField
+                    id="admissionYear"
+                    label="Admission Year"
+                    required
+                    error={errors.admissionYear?.message}
+                  >
+                    <Input
+                      id="admissionYear"
+                      type="number"
+                      placeholder="e.g., 2024"
+                      {...register("admissionYear", { valueAsNumber: true })}
+                    />
+                  </FormField>
+                </div>
+
+                {/* Batch Selection */}
+                <FormField
+                  id="batchId"
+                  label="Batch"
+                  error={errors.batchId?.message}
+                >
+                  <Controller
+                    name="batchId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value ?? ""}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger id="batchId">
+                          <SelectValue placeholder="Select batch" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {batches.map((batch) => (
+                            <SelectItem key={batch.id} value={batch.id}>
+                              {batch.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   />
-                )}
-              />
-              <label
-                htmlFor="isCwsn"
-                className="text-sm font-medium text-text-primary cursor-pointer"
-              >
-                Child With Special Needs (CWSN)
-              </label>
-            </div>
-          </CardContent>
-        </Card>
+                </FormField>
+
+                {/* CWSN checkbox */}
+                <div className="flex items-center gap-3">
+                  <Controller
+                    name="isCwsn"
+                    control={control}
+                    render={({ field }) => (
+                      <Checkbox
+                        id="isCwsn"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <label
+                    htmlFor="isCwsn"
+                    className="text-sm font-medium text-text-primary cursor-pointer"
+                  >
+                    Child With Special Needs (CWSN)
+                  </label>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Parent / Guardian Tab */}
           <TabsContent value="parents" className="mt-6">
             <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Parent / Guardian</CardTitle>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={handleAddParent}
-            >
-              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Add Parent
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {fields.length === 0 ? (
-              <p className="text-sm text-text-muted text-center py-4">
-                No parents added yet. Click &quot;Add Parent&quot; to add
-                guardian details.
-              </p>
-            ) : (
-              <>
-                {fields.map((field, index) => (
-                  <ParentFieldGroup
-                    key={field.id}
-                    index={index}
-                    register={register}
-                    control={control}
-                    errors={errors}
-                    onRemove={() => remove(index)}
-                    canRemove={fields.length > 0}
-                    onSetPrimaryContact={handleSetPrimaryContact}
-                  />
-                ))}
-                {/* Validation error for primary contact */}
-                {errors.parents?.message && (
-                  <p className="text-sm text-error mt-2">
-                    {errors.parents.message}
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg">Parent / Guardian</CardTitle>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleAddParent}
+                >
+                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Add Parent
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {fields.length === 0 ? (
+                  <p className="text-sm text-text-muted text-center py-4">
+                    No parents added yet. Click &quot;Add Parent&quot; to add
+                    guardian details.
                   </p>
+                ) : (
+                  <>
+                    {fields.map((field, index) => (
+                      <ParentFieldGroup
+                        key={field.id}
+                        index={index}
+                        register={register}
+                        control={control}
+                        errors={errors}
+                        onRemove={() => remove(index)}
+                        canRemove={fields.length > 0}
+                        onSetPrimaryContact={handleSetPrimaryContact}
+                      />
+                    ))}
+                    {/* Validation error for primary contact */}
+                    {errors.parents?.message && (
+                      <p className="text-sm text-error mt-2">
+                        {errors.parents.message}
+                      </p>
+                    )}
+                  </>
                 )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Health Information Tab */}
@@ -551,8 +611,8 @@ export default function EditStudentPage({
           <Button type="button" variant="secondary" asChild>
             <Link href={`/students/${id}`}>Cancel</Link>
           </Button>
-          <Button type="submit" disabled={isPending || isUpdatingHealth}>
-            {isPending || isUpdatingHealth ? "Saving..." : "Save Changes"}
+          <Button type="submit" disabled={isPending}>
+            {isPending ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </form>

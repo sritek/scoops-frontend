@@ -77,8 +77,8 @@ export const studentHealthSchema = z.object({
     ])
     .optional()
     .nullable(),
-  heightCm: z.number().positive().optional().nullable(),
-  weightKg: z.number().positive().optional().nullable(),
+  heightCm: z.union([z.number().positive(), z.null()]).optional(),
+  weightKg: z.union([z.number().positive(), z.null()]).optional(),
 
   // Medical History
   allergies: z.string().max(500).optional().nullable(),
@@ -88,16 +88,31 @@ export const studentHealthSchema = z.object({
 
   // Sensory
   visionLeft: z
-    .enum(["normal", "corrected_with_glasses", "corrected_with_lenses", "impaired"])
+    .enum([
+      "normal",
+      "corrected_with_glasses",
+      "corrected_with_lenses",
+      "impaired",
+    ])
     .optional()
     .nullable(),
   visionRight: z
-    .enum(["normal", "corrected_with_glasses", "corrected_with_lenses", "impaired"])
+    .enum([
+      "normal",
+      "corrected_with_glasses",
+      "corrected_with_lenses",
+      "impaired",
+    ])
     .optional()
     .nullable(),
   usesGlasses: z.boolean().optional(),
   hearingStatus: z
-    .enum(["normal", "mild_impairment", "moderate_impairment", "severe_impairment"])
+    .enum([
+      "normal",
+      "mild_impairment",
+      "moderate_impairment",
+      "severe_impairment",
+    ])
     .optional()
     .nullable(),
   usesHearingAid: z.boolean().optional(),
@@ -107,13 +122,17 @@ export const studentHealthSchema = z.object({
   mobilityAid: z.string().max(100).optional().nullable(),
 
   // Vaccinations
-  vaccinationRecords: z.record(z.string()).optional().nullable(),
+  vaccinationRecords: z.record(z.string(), z.string()).optional().nullable(),
 
   // Insurance
   hasInsurance: z.boolean().optional(),
   insuranceProvider: z.string().max(200).optional().nullable(),
   insurancePolicyNo: z.string().max(100).optional().nullable(),
-  insuranceExpiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  insuranceExpiry: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
 
   // Emergency
   emergencyMedicalNotes: z.string().max(1000).optional().nullable(),
@@ -122,8 +141,16 @@ export const studentHealthSchema = z.object({
   preferredHospital: z.string().max(200).optional().nullable(),
 
   // Checkup Tracking
-  lastCheckupDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-  nextCheckupDue: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  lastCheckupDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
+  nextCheckupDue: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
 
   // Dietary
   dietaryRestrictions: z.string().max(500).optional().nullable(),
@@ -162,7 +189,7 @@ export const parentsStepSchema = z
       // If there are parents, exactly one must be the primary contact
       if (data.parents && data.parents.length > 0) {
         const primaryCount = data.parents.filter(
-          (p) => p.isPrimaryContact
+          (p) => p.isPrimaryContact,
         ).length;
         return primaryCount === 1;
       }
@@ -171,7 +198,7 @@ export const parentsStepSchema = z
     {
       message: "Please select exactly one parent as the primary contact",
       path: ["parents"],
-    }
+    },
   );
 
 /**
@@ -188,10 +215,12 @@ export const studentFormSchema = z
       .string()
       .min(1, "Last name is required")
       .max(255, "Last name is too long"),
-    gender: z.enum(studentGenders).optional(),
-    dob: z.string().optional(),
-    category: z.enum(studentCategories).optional(),
-    isCwsn: z.boolean().optional(),
+    gender: z.enum(studentGenders, {
+      error: "Gender is required",
+    }),
+    dob: z.string().min(1, "Date of birth is required"),
+    category: z.enum(studentCategories).nullable().optional(),
+    isCwsn: z.boolean(),
     photoUrl: photoUrlSchema,
     admissionYear: z
       .number()
@@ -207,7 +236,7 @@ export const studentFormSchema = z
       // If there are parents, exactly one must be the primary contact
       if (data.parents && data.parents.length > 0) {
         const primaryCount = data.parents.filter(
-          (p) => p.isPrimaryContact
+          (p) => p.isPrimaryContact,
         ).length;
         return primaryCount === 1;
       }
@@ -216,7 +245,7 @@ export const studentFormSchema = z
     {
       message: "Please select exactly one parent as the primary contact",
       path: ["parents"],
-    }
+    },
   );
 
 /**
@@ -264,18 +293,17 @@ export const defaultHealthValues: z.infer<typeof studentHealthSchema> = {
 /**
  * Default values for the form
  */
-export const defaultStudentFormValues: StudentFormData = {
+export const defaultStudentFormValues: Partial<StudentFormData> = {
   firstName: "",
   lastName: "",
-  gender: undefined,
-  dob: undefined,
-  category: undefined,
+  dob: "",
+  category: null,
   isCwsn: false,
   photoUrl: null,
   admissionYear: new Date().getFullYear(),
   batchId: "",
   parents: [],
-  health: undefined,
+  health: defaultHealthValues,
 };
 
 /**

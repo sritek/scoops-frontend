@@ -1,6 +1,11 @@
 "use client";
 
-import { Controller, Control, UseFormRegister, FieldErrors } from "react-hook-form";
+import {
+  Controller,
+  Control,
+  UseFormRegister,
+  FieldErrors,
+} from "react-hook-form";
 import type { StudentFormData } from "@/lib/validations/student";
 import { FormField } from "@/components/forms";
 import {
@@ -27,11 +32,7 @@ import {
   Calendar,
   UtensilsCrossed,
 } from "lucide-react";
-import type {
-  BloodGroup,
-  VisionStatus,
-  HearingStatus,
-} from "@/types/health";
+import type { BloodGroup, VisionStatus, HearingStatus } from "@/types/health";
 
 interface StudentHealthFormProps {
   control: Control<StudentFormData>;
@@ -184,7 +185,8 @@ export function StudentHealthForm({
                 type="number"
                 placeholder="e.g., 150"
                 {...register("health.heightCm", {
-                  setValueAs: (v) => (v === "" ? null : Number(v)),
+                  setValueAs: (v) =>
+                    !v || isNaN(Number(v)) ? null : Number(v),
                 })}
               />
             </FormField>
@@ -199,7 +201,8 @@ export function StudentHealthForm({
                 type="number"
                 placeholder="e.g., 45"
                 {...register("health.weightKg", {
-                  setValueAs: (v) => (v === "" ? null : Number(v)),
+                  setValueAs: (v) =>
+                    !v || isNaN(Number(v)) ? null : Number(v),
                 })}
               />
             </FormField>
@@ -574,7 +577,11 @@ export function StudentHealthForm({
                     />
                   </FormField>
                 </div>
-              ) : null
+              ) : (
+                <div className="space-y-4 pl-7">
+                  <p>No insurance details provided</p>
+                </div>
+              )
             }
           />
         </CardContent>

@@ -20,11 +20,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useCreateStudent } from "@/lib/api/students";
-import { useUpdateStudentHealth } from "@/lib/api/health";
 import {
   studentFormSchema,
-  studentInfoStepSchema,
-  parentsStepSchema,
   defaultStudentFormValues,
   defaultParentValues,
   defaultHealthValues,
@@ -56,8 +53,6 @@ import {
   useBatches,
   useBatchFeeStructureByBatch,
   useAllScholarships,
-  useApplyBatchFeeStructure,
-  useAssignScholarship,
 } from "@/lib/api";
 import { useCurrentSession } from "@/lib/api/sessions";
 import {
@@ -93,9 +88,6 @@ export default function AddStudentPage() {
     isPending,
     error: submitError,
   } = useCreateStudent();
-  const applyBatchFeeStructure = useApplyBatchFeeStructure();
-  const assignScholarship = useAssignScholarship();
-  const updateHealth = useUpdateStudentHealth();
 
   const {
     register,
@@ -108,9 +100,10 @@ export default function AddStudentPage() {
     formState: { errors },
   } = useForm<StudentFormData>({
     resolver: zodResolver(studentFormSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
     defaultValues: {
       ...defaultStudentFormValues,
-      health: defaultHealthValues,
     },
   });
 
@@ -126,7 +119,7 @@ export default function AddStudentPage() {
   const getStepFields = (step: number): (keyof StudentFormData)[] => {
     switch (step) {
       case 1:
-        return ["firstName", "lastName", "admissionYear"];
+        return ["firstName", "lastName", "gender", "dob", "admissionYear"];
       case 2:
         return ["parents"];
       case 3:
@@ -148,8 +141,12 @@ export default function AddStudentPage() {
   };
 
   // Handle next step
-  const handleNext = async () => {
+  const handleNext = async (e?: React.MouseEvent<HTMLButtonElement>) => {
+    // e?.preventDefault(); // Prevent any default behavior
+    // e?.stopPropagation(); // Stop event bubbling
+
     const isValid = await validateStep(currentStep);
+
     if (isValid) {
       setCurrentStep((prev) => Math.min(prev + 1, 4));
     }
@@ -166,7 +163,7 @@ export default function AddStudentPage() {
   // Fetch batch fee structure for the selected batch
   const { data: batchFeeStructure } = useBatchFeeStructureByBatch(
     selectedBatchId ?? null,
-    currentSession?.id ?? null
+    currentSession?.id ?? null,
   );
 
   const hasBatchFeeStructure = !!batchFeeStructure;
@@ -174,7 +171,7 @@ export default function AddStudentPage() {
   // Filter available scholarships (exclude already selected)
   const availableScholarships =
     allScholarships?.filter(
-      (s) => s.isActive && !selectedScholarships.some((sel) => sel.id === s.id)
+      (s) => s.isActive && !selectedScholarships.some((sel) => sel.id === s.id),
     ) ?? [];
 
   const handleAddScholarship = (scholarship: Scholarship) => {
@@ -183,7 +180,7 @@ export default function AddStudentPage() {
 
   const handleRemoveScholarship = (scholarshipId: string) => {
     setSelectedScholarships((prev) =>
-      prev.filter((s) => s.id !== scholarshipId)
+      prev.filter((s) => s.id !== scholarshipId),
     );
   };
 
@@ -212,74 +209,57 @@ export default function AddStudentPage() {
   };
 
   const onSubmit = (data: StudentFormData) => {
-    // Extract health data before creating student
-    const { health, ...studentData } = data;
+    // Prepare payload with all data for transactional creation
+    const payload = {
+      ...data,
+      // Include health data if provided and has actual values
+      health:
+        data.health &&
+        Object.values(data.health).some(
+          (v) => v !== undefined && v !== null && v !== "",
+        )
+          ? data.health
+          : undefined,
+      // Include batch fee structure if selected
+      batchFeeStructureId:
+        applyBatchFees && batchFeeStructure ? batchFeeStructure.id : undefined,
+      // Include scholarship IDs if any selected
+      scholarshipIds:
+        selectedScholarships.length > 0
+          ? selectedScholarships.map((s) => s.id)
+          : undefined,
+      // Include session ID if fees or scholarships are provided
+      sessionId:
+        (applyBatchFees && batchFeeStructure) || selectedScholarships.length > 0
+          ? currentSession?.id
+          : undefined,
+    };
 
-    console.log("data", data);
+    // Remove undefined values
+    const cleanPayload = Object.fromEntries(
+      Object.entries(payload).filter(([, v]) => v !== undefined),
+    ) as unknown as Parameters<typeof createStudent>[0];
 
-    // createStudent(studentData, {
-    //   onSuccess: async (student) => {
-    //     // Apply fees and scholarships after student creation
-    //     const postCreationTasks: Promise<unknown>[] = [];
+    console.log("cleanPayload", cleanPayload);
 
-    //     // Update health data if provided
-    //     if (health) {
-    //       // Remove undefined values and empty strings
-    //       const healthData = Object.fromEntries(
-    //         Object.entries(health).filter(
-    //           ([_, v]) => v !== undefined && v !== ""
-    //         )
-    //       );
-
-    //       if (Object.keys(healthData).length > 0) {
-    //         postCreationTasks.push(
-    //           updateHealth.mutateAsync({
-    //             studentId: student.id,
-    //             data: healthData,
-    //           })
-    //         );
-    //       }
-    //     }
-
-    //     // Apply batch fee structure if selected
-    //     if (applyBatchFees && batchFeeStructure && currentSession) {
-    //       postCreationTasks.push(
-    //         applyBatchFeeStructure.mutateAsync({
-    //           batchFeeStructureId: batchFeeStructure.id,
-    //           studentIds: [student.id],
-    //         })
-    //       );
-    //     }
-
-    //     // Assign selected scholarships
-    //     if (selectedScholarships.length > 0 && currentSession) {
-    //       for (const scholarship of selectedScholarships) {
-    //         postCreationTasks.push(
-    //           assignScholarship.mutateAsync({
-    //             studentId: student.id,
-    //             scholarshipId: scholarship.id,
-    //             sessionId: currentSession.id,
-    //           })
-    //         );
-    //       }
-    //     }
-
-    //     // Wait for all post-creation tasks
-    //     if (postCreationTasks.length > 0) {
-    //       try {
-    //         await Promise.all(postCreationTasks);
-    //         toast.success("Student created successfully");
-    //       } catch {
-    //         toast.warning("Student created, but some data could not be saved");
-    //       }
-    //     } else {
-    //       toast.success("Student created successfully");
-    //     }
-
-    //     router.push("/students");
-    //   },
-    // });
+    createStudent(cleanPayload, {
+      onSuccess: () => {
+        toast.success("Student created successfully");
+        router.push("/students");
+      },
+      onError: (error) => {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to create student. Please try again.",
+        );
+      },
+    });
   };
+
+  console.log("watch()", watch());
+
+  console.log("errors", errors);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -381,6 +361,7 @@ export default function AddStudentPage() {
                 <FormField
                   id="gender"
                   label="Gender"
+                  required
                   error={errors.gender?.message}
                 >
                   <Controller
@@ -389,9 +370,12 @@ export default function AddStudentPage() {
                     render={({ field }) => (
                       <Select
                         value={field.value ?? ""}
-                        onValueChange={field.onChange}
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          trigger("gender");
+                        }}
                       >
-                        <SelectTrigger id="gender">
+                        <SelectTrigger id="gender" value="__select__">
                           <SelectValue placeholder="Select gender" />
                         </SelectTrigger>
                         <SelectContent>
@@ -409,6 +393,7 @@ export default function AddStudentPage() {
                 <FormField
                   id="dob"
                   label="Date of Birth"
+                  required
                   error={errors.dob?.message}
                 >
                   <Input id="dob" type="date" {...register("dob")} />
@@ -430,7 +415,7 @@ export default function AddStudentPage() {
                         value={field.value ?? ""}
                         onValueChange={field.onChange}
                       >
-                        <SelectTrigger id="category">
+                        <SelectTrigger id="category" value="__select__">
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
                         <SelectContent>
@@ -626,7 +611,7 @@ export default function AddStudentPage() {
                     {selectedScholarships.map((scholarship) => (
                       <Badge
                         key={scholarship.id}
-                        variant="secondary"
+                        variant="default"
                         className="flex items-center gap-1 pr-1"
                       >
                         {scholarship.name}
@@ -652,10 +637,11 @@ export default function AddStudentPage() {
                   <Select
                     onValueChange={(id) => {
                       const scholarship = availableScholarships.find(
-                        (s) => s.id === id
+                        (s) => s.id === id,
                       );
                       if (scholarship) handleAddScholarship(scholarship);
                     }}
+                    value=""
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Add a scholarship..." />
@@ -718,12 +704,12 @@ export default function AddStudentPage() {
             </Button>
 
             {currentStep < 4 ? (
-              <Button type="button" onClick={handleNext}>
+              <Button key="next-button" type="button" onClick={handleNext}>
                 Next
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
-              <Button type="submit" disabled={isPending}>
+              <Button key="submit-button" type="submit" disabled={isPending}>
                 {isPending ? "Adding..." : "Add Student"}
               </Button>
             )}

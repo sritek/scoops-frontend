@@ -14,10 +14,8 @@ const buttonVariants = {
     "bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-700",
   secondary:
     "bg-bg-surface text-text-primary border border-border-subtle hover:bg-bg-app active:bg-bg-app",
-  ghost:
-    "bg-transparent text-text-primary hover:bg-bg-app active:bg-bg-app",
-  destructive:
-    "bg-error text-white hover:bg-red-700 active:bg-red-800",
+  ghost: "bg-transparent text-text-primary hover:bg-bg-app active:bg-bg-app",
+  destructive: "bg-error text-white hover:bg-red-700 active:bg-red-800",
 };
 
 const buttonSizes = {
@@ -90,6 +88,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={isDisabled}
         aria-disabled={isDisabled}
         aria-busy={isLoading}
+        type="button"
         {...props}
       >
         {isLoading ? (

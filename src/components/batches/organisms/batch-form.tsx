@@ -16,7 +16,6 @@ import {
   SelectItem,
 } from "@/components/ui";
 import { FormField } from "@/components/forms";
-import { BatchNameGenerator } from "../molecules/batch-name-generator";
 import { TeacherSelect } from "../molecules/teacher-select";
 import { SessionSelect } from "../molecules/session-select";
 import { cn } from "@/lib/utils/cn";
@@ -35,9 +34,18 @@ const batchFormSchema = z.object({
     .string()
     .min(1, "Batch name is required")
     .max(255, "Batch name is too long"),
-  academicLevel: z.enum(["primary", "secondary", "senior_secondary", "coaching"]),
+  academicLevel: z.enum([
+    "primary",
+    "secondary",
+    "senior_secondary",
+    "coaching",
+  ]),
   stream: z.enum(["science", "commerce", "arts"]).optional(),
-  classTeacherId: z.string().uuid("Invalid teacher ID").optional().or(z.literal("")),
+  classTeacherId: z
+    .string()
+    .uuid("Invalid teacher ID")
+    .optional()
+    .or(z.literal("")),
   sessionId: z.string().uuid("Invalid session ID").optional().or(z.literal("")),
   isActive: z.boolean().optional(),
 });
@@ -50,12 +58,11 @@ interface BatchFormProps {
   isSubmitting?: boolean;
   submitLabel?: string;
   className?: string;
-  showAutoName?: boolean;
 }
 
 /**
  * BatchForm - Complete batch creation/edit form
- * 
+ *
  * Features:
  * - Auto-generated batch name (optional)
  * - Academic level and stream selection
@@ -69,7 +76,6 @@ export function BatchForm({
   isSubmitting = false,
   submitLabel = "Save",
   className,
-  showAutoName = true,
 }: BatchFormProps) {
   const {
     register,
@@ -128,20 +134,7 @@ export function BatchForm({
         required
         error={errors.name?.message}
       >
-        {showAutoName ? (
-          <BatchNameGenerator
-            academicLevel={watchAcademicLevel}
-            stream={watchStream}
-            value={watchName}
-            onChange={(value) => setValue("name", value)}
-          />
-        ) : (
-          <Input
-            id="name"
-            placeholder="e.g., Class 10-A"
-            {...register("name")}
-          />
-        )}
+        <Input id="name" placeholder="e.g., Class 10-A" {...register("name")} />
       </FormField>
 
       {/* Academic Level */}
@@ -173,11 +166,7 @@ export function BatchForm({
 
       {/* Stream (conditional) */}
       {showStreamSelect && (
-        <FormField
-          id="stream"
-          label="Stream"
-          error={errors.stream?.message}
-        >
+        <FormField id="stream" label="Stream" error={errors.stream?.message}>
           <Controller
             name="stream"
             control={control}

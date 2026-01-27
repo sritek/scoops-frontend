@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Layers } from "lucide-react";
 import { toast } from "sonner";
-import { Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui";
 import { BatchForm, type BatchFormData } from "@/components/batches";
 import { useCreateBatch } from "@/lib/api/batches";
 import { usePermissions } from "@/lib/hooks";
@@ -13,7 +18,7 @@ import { AccessDeniedPage } from "@/components/ui";
 
 /**
  * Create Batch Page
- * 
+ *
  * Allows admins to create a new batch with:
  * - Auto-generated name (editable)
  * - Academic level and stream selection
@@ -49,7 +54,7 @@ export default function CreateBatchPage() {
       },
       onError: (error) => {
         toast.error(
-          error instanceof Error ? error.message : "Failed to create batch"
+          error instanceof Error ? error.message : "Failed to create batch",
         );
       },
     });
@@ -87,7 +92,6 @@ export default function CreateBatchPage() {
             onSubmit={handleSubmit}
             isSubmitting={isPending}
             submitLabel="Create Batch"
-            showAutoName
           />
         </CardContent>
       </Card>

@@ -3,6 +3,8 @@
  * Matches backend GET /students response
  */
 
+import { StudentHealth, UpdateStudentHealthInput } from "./health";
+
 export type StudentStatus = "active" | "inactive";
 export type StudentGender = "male" | "female" | "other";
 export type StudentCategory = "gen" | "sc" | "st" | "obc" | "minority";
@@ -62,6 +64,10 @@ export interface CreateStudentInput {
     photoUrl?: string | null;
     isPrimaryContact?: boolean;
   }[];
+  batchFeeStructureId?: string;
+  scholarshipIds?: string[];
+  sessionId?: string;
+  health?: StudentHealth;
 }
 
 /**
@@ -86,4 +92,5 @@ export interface UpdateStudentInput {
     photoUrl?: string | null;
     isPrimaryContact?: boolean;
   }[];
+  health?: UpdateStudentHealthInput;
 }

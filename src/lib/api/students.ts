@@ -6,6 +6,7 @@ import type {
   UpdateStudentInput,
 } from "@/types/student";
 import type { PaginatedResponse, PaginationParams } from "@/types";
+import { healthKeys } from "./health";
 
 /**
  * Extended params for students list with filters
@@ -68,9 +69,15 @@ async function createStudent(data: CreateStudentInput): Promise<Student> {
     // Filter out empty parent entries
     parents: data.parents?.filter((p) => p.firstName && p.lastName && p.phone),
   };
+
+  // Remove undefined values
+  const cleanPayload = Object.fromEntries(
+    Object.entries(payload).filter(([, v]) => v !== undefined)
+  );
+
   const response = await apiClient.post<{ data: Student }>(
     "/students",
-    payload
+    cleanPayload
   );
   return response.data;
 }
@@ -146,7 +153,11 @@ export function useCreateStudent() {
 
   return useMutation({
     mutationFn: createStudent,
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Immediately cache the created student for instant detail page load
+      queryClient.setQueryData(studentsKeys.detail(data.id), data);
+
+      // Invalidate list queries so they refetch on next view
       queryClient.invalidateQueries({ queryKey: studentsKeys.all });
     },
   });
@@ -164,11 +175,19 @@ export function useUpdateStudent() {
 
   return useMutation({
     mutationFn: updateStudent,
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
+      // Immediately update the cache with the response for instant UI update
+      queryClient.setQueryData(studentsKeys.detail(variables.id), data);
+
+      // Invalidate list queries so they refetch on next view
       queryClient.invalidateQueries({ queryKey: studentsKeys.all });
-      queryClient.invalidateQueries({
-        queryKey: studentsKeys.detail(variables.id),
-      });
+
+      // If health data was updated, also invalidate health queries
+      if (variables.data.health !== undefined) {
+        queryClient.invalidateQueries({
+          queryKey: healthKeys.student(variables.id),
+        });
+      }
     },
   });
 }

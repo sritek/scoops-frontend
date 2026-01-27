@@ -4,7 +4,14 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { Button, Card, CardContent, CardHeader, CardTitle, Spinner } from "@/components/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Spinner,
+} from "@/components/ui";
 import { BatchForm, type BatchFormData } from "@/components/batches";
 import { useBatch, useUpdateBatch } from "@/lib/api/batches";
 import { usePermissions } from "@/lib/hooks";
@@ -12,7 +19,7 @@ import { AccessDeniedPage } from "@/components/ui";
 
 /**
  * Edit Batch Page
- * 
+ *
  * Allows admins to edit an existing batch.
  */
 export default function EditBatchPage() {
@@ -69,10 +76,10 @@ export default function EditBatchPage() {
         },
         onError: (error) => {
           toast.error(
-            error instanceof Error ? error.message : "Failed to update batch"
+            error instanceof Error ? error.message : "Failed to update batch",
           );
         },
-      }
+      },
     );
   };
 
@@ -89,9 +96,7 @@ export default function EditBatchPage() {
       </div>
 
       <div>
-        <h1 className="text-xl font-semibold text-text-primary">
-          Edit Batch
-        </h1>
+        <h1 className="text-xl font-semibold text-text-primary">Edit Batch</h1>
         <p className="text-sm text-text-muted mt-1">
           Update batch information for {batch.name}
         </p>
@@ -115,7 +120,6 @@ export default function EditBatchPage() {
             onSubmit={handleSubmit}
             isSubmitting={isPending}
             submitLabel="Update Batch"
-            showAutoName={false}
           />
         </CardContent>
       </Card>
