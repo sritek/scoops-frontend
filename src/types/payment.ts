@@ -15,12 +15,13 @@ export interface PaymentLink {
   createdAt: string;
   paymentUrl: string;
   studentName: string;
-  feePlanName: string;
+  installmentNumber: number;
+  sessionName: string;
   createdBy?: string;
 }
 
 export interface CreatePaymentLinkInput {
-  studentFeeId: string;
+  installmentId: string;
   expiresInDays?: number;
   description?: string;
 }
@@ -48,7 +49,14 @@ export interface PublicPaymentLink {
     name: string;
     batchName: string | null;
   };
-  feePlan: string;
+  installment: {
+    number: number;
+    dueDate: string;
+    amount: number;
+  };
+  session: {
+    name: string;
+  };
   organization: {
     name: string;
     logoUrl: string | null;

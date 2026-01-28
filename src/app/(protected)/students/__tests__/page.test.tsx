@@ -23,6 +23,7 @@ vi.mock("@/lib/hooks", () => ({
     canAll: vi.fn(),
     groups: {},
   }),
+  useDebounce: (value: unknown) => value,
 }));
 
 // Mock the students API
@@ -32,6 +33,22 @@ vi.mock("@/lib/api/students", () => ({
   studentsKeys: {
     all: ["students"],
     list: (params?: unknown) => ["students", "list", params],
+  },
+}));
+
+// Mock the batches API
+vi.mock("@/lib/api/batches", () => ({
+  useBatches: () => ({
+    data: {
+      data: [],
+      pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
+    },
+    isLoading: false,
+    error: null,
+  }),
+  batchesKeys: {
+    all: ["batches"],
+    list: (params?: unknown) => ["batches", "list", params],
   },
 }));
 
@@ -74,7 +91,7 @@ const sampleStudents: Student[] = [
 function createPaginatedResponse(
   data: Student[],
   page = 1,
-  total?: number
+  total?: number,
 ): PaginatedResponse<Student> {
   const actualTotal = total ?? data.length;
   const limit = 20;
@@ -117,25 +134,31 @@ describe("StudentsPage", () => {
   });
 
   describe("Permission-gated UI", () => {
-    it("shows 'Add Student' button when user has STUDENT_CREATE permission", () => {
-      mockCan.mockImplementation((permission: string) => permission === "STUDENT_CREATE");
+    it("shows 'Add Student' button when user has STUDENT_EDIT permission", () => {
+      mockCan.mockImplementation(
+        (permission: string) => permission === "STUDENT_EDIT",
+      );
 
       render(<StudentsPage />, { wrapper: createWrapper() });
 
-      expect(screen.getByRole("link", { name: /add student/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: /add student/i }),
+      ).toBeInTheDocument();
     });
 
-    it("hides 'Add Student' button when user lacks STUDENT_CREATE permission", () => {
+    it("hides 'Add Student' button when user lacks STUDENT_EDIT permission", () => {
       mockCan.mockReturnValue(false);
 
       render(<StudentsPage />, { wrapper: createWrapper() });
 
-      expect(screen.queryByRole("link", { name: /add student/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /add student/i }),
+      ).not.toBeInTheDocument();
     });
   });
 
   describe("Loading and Empty States", () => {
-    it("shows loading spinner when data is loading", () => {
+    it("shows loading skeleton when data is loading", () => {
       mockStudentsData.mockReturnValue({
         data: undefined,
         isLoading: true,
@@ -144,9 +167,9 @@ describe("StudentsPage", () => {
 
       render(<StudentsPage />, { wrapper: createWrapper() });
 
-      // The Spinner has role="status"
-      const spinners = screen.getAllByRole("status");
-      expect(spinners.length).toBeGreaterThan(0);
+      // DataTable shows TableSkeleton with animated pulse elements
+      const skeletons = document.querySelectorAll(".animate-pulse");
+      expect(skeletons.length).toBeGreaterThan(0);
     });
 
     it("shows empty state when no students exist", () => {
@@ -191,7 +214,9 @@ describe("StudentsPage", () => {
 
   describe("Empty state with CTA", () => {
     it("shows 'Add Student' button in empty state when user has permission", () => {
-      mockCan.mockImplementation((permission: string) => permission === "STUDENT_CREATE");
+      mockCan.mockImplementation(
+        (permission: string) => permission === "STUDENT_EDIT",
+      );
       mockStudentsData.mockReturnValue({
         data: createPaginatedResponse([]),
         isLoading: false,
@@ -215,7 +240,9 @@ describe("StudentsPage", () => {
 
       render(<StudentsPage />, { wrapper: createWrapper() });
 
-      expect(screen.queryByRole("link", { name: /add student/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /add student/i }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -232,7 +259,9 @@ describe("StudentsPage", () => {
       render(<StudentsPage />, { wrapper: createWrapper() });
 
       // Should show Previous/Next buttons
-      expect(screen.getByRole("button", { name: /previous/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /previous/i }),
+      ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument();
     });
 
@@ -246,8 +275,12 @@ describe("StudentsPage", () => {
       render(<StudentsPage />, { wrapper: createWrapper() });
 
       // Should not show Previous/Next buttons for single page
-      expect(screen.queryByRole("button", { name: /previous/i })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /next/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /previous/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /next/i }),
+      ).not.toBeInTheDocument();
     });
   });
 });

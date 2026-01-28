@@ -3,7 +3,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
-  DollarSign,
   Plus,
   AlertCircle,
   Clock,
@@ -23,14 +22,7 @@ import {
   Calendar,
   Trash2,
 } from "lucide-react";
-import {
-  useFeePlans,
-  usePendingFees,
-  useCreateFeePlan,
-  useRecordPayment,
-  useReceipts,
-  downloadReceiptPDF,
-} from "@/lib/api/fees";
+import { useReceipts, downloadReceiptPDF } from "@/lib/api/fees";
 import {
   usePaymentLinks,
   useCreatePaymentLink,
@@ -45,6 +37,9 @@ import {
   useDeleteScholarship,
   useEMITemplates,
   useCreateEMITemplate,
+  usePendingInstallments,
+  useRecordInstallmentPayment,
+  useBatches,
 } from "@/lib/api";
 import { usePermissions, useDebounce } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
@@ -72,25 +67,30 @@ import {
   CardGridSkeleton,
 } from "@/components/ui";
 import type {
-  FeePlan,
-  StudentFee,
-  FeeFrequency,
   PaymentMode,
   Receipt as ReceiptType,
   FeeComponent,
   EMIPlanTemplate,
+  PendingInstallment,
+  InstallmentStatus,
 } from "@/types/fee";
 import type { Scholarship } from "@/types/scholarship";
 import type { PaymentLink } from "@/types/payment";
 import { PAGINATION_DEFAULTS } from "@/types";
 
-type TabType = "plans" | "pending" | "receipts" | "links" | "components" | "scholarships" | "emi-templates";
+type TabType =
+  | "pending"
+  | "receipts"
+  | "links"
+  | "components"
+  | "scholarships"
+  | "emi-templates";
 
 /**
  * Fees Management Page
  *
- * Two tabs:
- * 1. Fee Plans - List and create fee plans
+ * Tabs:
+ * 1. Pending Fees - List pending/partial fees and record payments
  * 2. Pending Fees - List pending/partial fees and record payments
  */
 export default function FeesPage() {
@@ -111,7 +111,7 @@ export default function FeesPage() {
           <p className="text-sm text-text-muted">
             {isTeacher
               ? "View pending fees for students in your batch"
-              : "Manage fee plans and track payments"}
+              : "Manage fees and track payments"}
           </p>
         </div>
       </div>
@@ -121,7 +121,8 @@ export default function FeesPage() {
         <div className="flex items-center gap-2 rounded-lg bg-primary-100 p-3 text-sm text-primary-600 dark:bg-primary-900/30">
           <Eye className="h-4 w-4" />
           <span>
-            You have view-only access to fees for your batch. Contact accounts staff to record payments.
+            You have view-only access to fees for your batch. Contact accounts
+            staff to record payments.
           </span>
         </div>
       )}
@@ -144,23 +145,6 @@ export default function FeesPage() {
         </button>
         <button
           onClick={() => {
-            setActiveTab("plans");
-            setCurrentPage(1);
-          }}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === "plans"
-              ? "border-primary-600 text-primary-600"
-              : "border-transparent text-text-muted hover:text-text-primary"
-          }`}
-        >
-          <DollarSign
-            className="inline-block mr-2 h-4 w-4"
-            aria-hidden="true"
-          />
-          Fee Plans
-        </button>
-        <button
-          onClick={() => {
             setActiveTab("receipts");
             setCurrentPage(1);
           }}
@@ -170,10 +154,7 @@ export default function FeesPage() {
               : "border-transparent text-text-muted hover:text-text-primary"
           }`}
         >
-          <Receipt
-            className="inline-block mr-2 h-4 w-4"
-            aria-hidden="true"
-          />
+          <Receipt className="inline-block mr-2 h-4 w-4" aria-hidden="true" />
           Receipts
         </button>
         {canManageFees && (
@@ -225,10 +206,7 @@ export default function FeesPage() {
                   : "border-transparent text-text-muted hover:text-text-primary"
               }`}
             >
-              <Award
-                className="inline-block mr-2 h-4 w-4"
-                aria-hidden="true"
-              />
+              <Award className="inline-block mr-2 h-4 w-4" aria-hidden="true" />
               Scholarships
             </button>
             <button
@@ -254,14 +232,7 @@ export default function FeesPage() {
 
       {/* Tab Content */}
       {activeTab === "pending" && (
-        <PendingFeesTab
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          canManageFees={canManageFees}
-        />
-      )}
-      {activeTab === "plans" && (
-        <FeePlansTab
+        <PendingInstallmentsTab
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
           canManageFees={canManageFees}
@@ -287,9 +258,10 @@ export default function FeesPage() {
 }
 
 /**
- * Pending Fees Tab
+ * Pending Installments Tab
+ * Shows pending fee installments and allows recording payments
  */
-function PendingFeesTab({
+function PendingInstallmentsTab({
   currentPage,
   setCurrentPage,
   canManageFees,
@@ -298,54 +270,111 @@ function PendingFeesTab({
   setCurrentPage: (page: number) => void;
   canManageFees: boolean;
 }) {
-  const [selectedFee, setSelectedFee] = useState<StudentFee | null>(null);
+  const [selectedInstallment, setSelectedInstallment] =
+    useState<PendingInstallment | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("cash");
+  const [transactionRef, setTransactionRef] = useState("");
+  const [remarks, setRemarks] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    InstallmentStatus | "__all__"
+  >("__all__");
+  const [batchFilter, setBatchFilter] = useState<string>("__all__");
   const [creatingLinkFor, setCreatingLinkFor] = useState<string | null>(null);
 
-  const { data, isLoading, error } = usePendingFees({
+  const { data: batchesData } = useBatches({ limit: 100 });
+  const batches = batchesData?.data ?? [];
+
+  const { data, isLoading, error } = usePendingInstallments({
     page: currentPage,
     limit: PAGINATION_DEFAULTS.LIMIT,
+    status: statusFilter !== "__all__" ? statusFilter : undefined,
+    batchId: batchFilter !== "__all__" ? batchFilter : undefined,
   });
 
-  const { mutate: recordPayment, isPending: isRecording } = useRecordPayment();
-  const { mutate: createPaymentLink, isPending: isCreatingLink } = useCreatePaymentLink();
+  const { mutate: recordPayment, isPending: isRecording } =
+    useRecordInstallmentPayment();
+  const { mutate: createPaymentLink, isPending: isCreatingLink } =
+    useCreatePaymentLink();
 
-  const fees = data?.data ?? [];
+  const installments = data?.data ?? [];
   const pagination = data?.pagination;
 
   const handleRecordPayment = () => {
-    if (!selectedFee || !paymentAmount) return;
+    if (!selectedInstallment || !paymentAmount) return;
 
     recordPayment(
       {
-        studentFeeId: selectedFee.id,
-        amount: parseFloat(paymentAmount),
-        paymentMode,
+        installmentId: selectedInstallment.id,
+        data: {
+          amount: parseFloat(paymentAmount),
+          paymentMode,
+          transactionRef: transactionRef || undefined,
+          remarks: remarks || undefined,
+        },
       },
       {
         onSuccess: () => {
-          setSelectedFee(null);
+          setSelectedInstallment(null);
           setPaymentAmount("");
           setPaymentMode("cash");
+          setTransactionRef("");
+          setRemarks("");
         },
-      }
+      },
     );
   };
 
-  const columns: ColumnDef<StudentFee>[] = useMemo(
+  const getStatusBadge = (status: InstallmentStatus) => {
+    switch (status) {
+      case "paid":
+        return <Badge variant="success">Paid</Badge>;
+      case "partial":
+        return <Badge variant="warning">Partial</Badge>;
+      case "overdue":
+        return <Badge variant="error">Overdue</Badge>;
+      case "due":
+        return <Badge variant="warning">Due</Badge>;
+      case "upcoming":
+        return <Badge variant="default">Upcoming</Badge>;
+      default:
+        return <Badge variant="default">{status}</Badge>;
+    }
+  };
+
+  const columns: ColumnDef<PendingInstallment>[] = useMemo(
     () => [
       {
         accessorKey: "student.fullName",
         header: "Student",
         cell: ({ row }) => (
-          <p className="font-medium">{row.original.student?.fullName}</p>
+          <div>
+            <p className="font-medium">{row.original.student?.fullName}</p>
+            {row.original.student?.batch && (
+              <p className="text-xs text-text-muted">
+                {row.original.student.batch.name}
+              </p>
+            )}
+          </div>
         ),
       },
       {
-        accessorKey: "feePlan.name",
-        header: "Fee Plan",
-        cell: ({ row }) => row.original.feePlan?.name,
+        accessorKey: "installmentNumber",
+        header: "Installment",
+        cell: ({ row }) => (
+          <span className="font-mono text-sm">
+            #{row.original.installmentNumber}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "session.name",
+        header: "Session",
+        cell: ({ row }) => row.original.session?.name,
+        meta: {
+          headerClassName: "hidden md:table-cell",
+          cellClassName: "hidden md:table-cell",
+        },
       },
       {
         accessorKey: "dueDate",
@@ -353,9 +382,9 @@ function PendingFeesTab({
         cell: ({ row }) => formatDate(row.original.dueDate),
       },
       {
-        accessorKey: "totalAmount",
-        header: "Total",
-        cell: ({ row }) => formatCurrency(row.original.totalAmount),
+        accessorKey: "amount",
+        header: "Amount",
+        cell: ({ row }) => formatCurrency(row.original.amount),
       },
       {
         accessorKey: "pendingAmount",
@@ -369,22 +398,7 @@ function PendingFeesTab({
       {
         accessorKey: "status",
         header: "Status",
-        cell: ({ row }) => {
-          const status = row.original.status;
-          return (
-            <Badge
-              variant={
-                status === "paid"
-                  ? "success"
-                  : status === "partial"
-                  ? "warning"
-                  : "error"
-              }
-            >
-              {status}
-            </Badge>
-          );
-        },
+        cell: ({ row }) => getStatusBadge(row.original.status),
       },
       {
         id: "actions",
@@ -395,7 +409,7 @@ function PendingFeesTab({
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => setSelectedFee(row.original)}
+                onClick={() => setSelectedInstallment(row.original)}
               >
                 <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />
                 Record
@@ -406,17 +420,19 @@ function PendingFeesTab({
                 onClick={() => {
                   setCreatingLinkFor(row.original.id);
                   createPaymentLink(
-                    { studentFeeId: row.original.id },
+                    { installmentId: row.original.id },
                     {
                       onSuccess: (data) => {
                         navigator.clipboard.writeText(data.paymentUrl);
                         setCreatingLinkFor(null);
-                        alert(`Payment link created and copied to clipboard!\n\n${data.paymentUrl}`);
+                        alert(
+                          `Payment link created and copied to clipboard!\n\n${data.paymentUrl}`,
+                        );
                       },
                       onError: () => {
                         setCreatingLinkFor(null);
                       },
-                    }
+                    },
                   );
                 }}
                 disabled={isCreatingLink && creatingLinkFor === row.original.id}
@@ -428,7 +444,7 @@ function PendingFeesTab({
           ) : null,
       },
     ],
-    [canManageFees, isCreatingLink, creatingLinkFor, createPaymentLink]
+    [canManageFees, isCreatingLink, creatingLinkFor, createPaymentLink],
   );
 
   if (error) {
@@ -437,7 +453,7 @@ function PendingFeesTab({
         <CardContent className="flex items-center gap-3 py-4">
           <AlertCircle className="h-5 w-5 text-error" />
           <p className="text-sm text-error">
-            Failed to load pending fees. Please try again.
+            Failed to load pending installments. Please try again.
           </p>
         </CardContent>
       </Card>
@@ -446,52 +462,121 @@ function PendingFeesTab({
 
   return (
     <>
-      {!isLoading && fees.length === 0 ? (
+      {/* Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center mb-4">
+        <Select
+          value={statusFilter}
+          onValueChange={(value) => {
+            setStatusFilter(value as InstallmentStatus | "__all__");
+            setCurrentPage(1);
+          }}
+        >
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="All status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All status</SelectItem>
+            <SelectItem value="overdue">Overdue</SelectItem>
+            <SelectItem value="due">Due</SelectItem>
+            <SelectItem value="partial">Partial</SelectItem>
+            <SelectItem value="upcoming">Upcoming</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={batchFilter}
+          onValueChange={(value) => {
+            setBatchFilter(value);
+            setCurrentPage(1);
+          }}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All batches" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All batches</SelectItem>
+            {batches.map((batch) => (
+              <SelectItem key={batch.id} value={batch.id}>
+                {batch.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {!isLoading &&
+      installments.length === 0 &&
+      statusFilter === "__all__" &&
+      batchFilter === "__all__" ? (
         <Card>
           <EmptyState
             icon={CheckCircle}
-            title="No pending fees"
-            description="All fees have been collected"
+            title="No pending installments"
+            description="All fee installments have been collected"
+          />
+        </Card>
+      ) : !isLoading && installments.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Clock}
+            title="No installments found"
+            description="Try adjusting your filters"
+            action={
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setStatusFilter("__all__");
+                  setBatchFilter("__all__");
+                }}
+              >
+                Clear filters
+              </Button>
+            }
           />
         </Card>
       ) : (
         <Card>
           <DataTable
             columns={columns}
-            data={fees}
+            data={installments}
             paginationMode="server"
             serverPagination={pagination}
             onPageChange={setCurrentPage}
             isLoading={isLoading}
             pageSize={PAGINATION_DEFAULTS.LIMIT}
-            emptyMessage="No pending fees found."
+            emptyMessage="No pending installments found."
           />
         </Card>
       )}
 
       {/* Record Payment Dialog */}
-      <Dialog open={!!selectedFee} onOpenChange={() => setSelectedFee(null)}>
+      <Dialog
+        open={!!selectedInstallment}
+        onOpenChange={() => setSelectedInstallment(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Record Payment</DialogTitle>
             <DialogDescription>
-              Record a payment for {selectedFee?.student.fullName}&apos;s{" "}
-              {selectedFee?.feePlan.name}
+              Record a payment for {selectedInstallment?.student.fullName}
+              &apos;s installment #{selectedInstallment?.installmentNumber}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-text-muted">Total Amount:</span>
+                <span className="text-text-muted">Installment Amount:</span>
                 <p className="font-medium">
-                  {selectedFee && formatCurrency(selectedFee.totalAmount)}
+                  {selectedInstallment &&
+                    formatCurrency(selectedInstallment.amount)}
                 </p>
               </div>
               <div>
                 <span className="text-text-muted">Pending:</span>
                 <p className="font-medium text-warning">
-                  {selectedFee && formatCurrency(selectedFee.pendingAmount)}
+                  {selectedInstallment &&
+                    formatCurrency(selectedInstallment.pendingAmount)}
                 </p>
               </div>
             </div>
@@ -504,7 +589,7 @@ function PendingFeesTab({
                 placeholder="Enter amount"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
-                max={selectedFee?.pendingAmount}
+                max={selectedInstallment?.pendingAmount}
               />
             </div>
 
@@ -524,10 +609,35 @@ function PendingFeesTab({
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="transactionRef">
+                Transaction Reference (optional)
+              </Label>
+              <Input
+                id="transactionRef"
+                placeholder="e.g., UPI ID or bank reference"
+                value={transactionRef}
+                onChange={(e) => setTransactionRef(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="remarks">Remarks (optional)</Label>
+              <Input
+                id="remarks"
+                placeholder="Any additional notes"
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+              />
+            </div>
           </div>
 
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setSelectedFee(null)}>
+            <Button
+              variant="secondary"
+              onClick={() => setSelectedInstallment(null)}
+            >
               Cancel
             </Button>
             <Button
@@ -535,217 +645,6 @@ function PendingFeesTab({
               disabled={!paymentAmount || isRecording}
             >
               {isRecording ? "Recording..." : "Record Payment"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-/**
- * Fee Plans Tab
- */
-function FeePlansTab({
-  currentPage,
-  setCurrentPage,
-  canManageFees,
-}: {
-  currentPage: number;
-  setCurrentPage: (page: number) => void;
-  canManageFees: boolean;
-}) {
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [newPlanName, setNewPlanName] = useState("");
-  const [newPlanAmount, setNewPlanAmount] = useState("");
-  const [newPlanFrequency, setNewPlanFrequency] =
-    useState<FeeFrequency>("monthly");
-
-  const { data, isLoading, error } = useFeePlans({
-    page: currentPage,
-    limit: PAGINATION_DEFAULTS.LIMIT,
-  });
-
-  const { mutate: createFeePlan, isPending: isCreating } = useCreateFeePlan();
-
-  const plans = data?.data ?? [];
-  const pagination = data?.pagination;
-
-  const handleCreatePlan = () => {
-    if (!newPlanName || !newPlanAmount) return;
-
-    createFeePlan(
-      {
-        name: newPlanName,
-        amount: parseFloat(newPlanAmount),
-        frequency: newPlanFrequency,
-      },
-      {
-        onSuccess: () => {
-          setShowCreateDialog(false);
-          setNewPlanName("");
-          setNewPlanAmount("");
-          setNewPlanFrequency("monthly");
-        },
-      }
-    );
-  };
-
-  const columns: ColumnDef<FeePlan>[] = useMemo(
-    () => [
-      {
-        accessorKey: "name",
-        header: "Plan Name",
-        cell: ({ row }) => <p className="font-medium">{row.original.name}</p>,
-      },
-      {
-        accessorKey: "amount",
-        header: "Amount",
-        cell: ({ row }) => formatCurrency(row.original.amount),
-      },
-      {
-        accessorKey: "frequency",
-        header: "Frequency",
-        cell: ({ row }) => (
-          <Badge variant="info" className="capitalize">
-            {row.original.frequency}
-          </Badge>
-        ),
-      },
-      {
-        accessorKey: "isActive",
-        header: "Status",
-        cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "success" : "default"}>
-            {row.original.isActive ? "Active" : "Inactive"}
-          </Badge>
-        ),
-      },
-      {
-        accessorKey: "createdAt",
-        header: "Created",
-        cell: ({ row }) => formatDate(row.original.createdAt),
-      },
-    ],
-    []
-  );
-
-  if (error) {
-    return (
-      <Card className="border-red-200 bg-red-50">
-        <CardContent className="flex items-center gap-3 py-4">
-          <AlertCircle className="h-5 w-5 text-error" />
-          <p className="text-sm text-error">
-            Failed to load fee plans. Please try again.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <>
-      <div className="flex justify-end">
-        {canManageFees && (
-          <Button onClick={() => setShowCreateDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Create Fee Plan
-          </Button>
-        )}
-      </div>
-
-      {!isLoading && plans.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon={DollarSign}
-            title="No fee plans"
-            description="Create your first fee plan to start collecting fees"
-            action={
-              canManageFees ? (
-                <Button onClick={() => setShowCreateDialog(true)}>
-                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Create Fee Plan
-                </Button>
-              ) : undefined
-            }
-          />
-        </Card>
-      ) : (
-        <Card>
-          <DataTable
-            columns={columns}
-            data={plans}
-            paginationMode="server"
-            serverPagination={pagination}
-            onPageChange={setCurrentPage}
-            isLoading={isLoading}
-            pageSize={PAGINATION_DEFAULTS.LIMIT}
-            emptyMessage="No fee plans found."
-          />
-        </Card>
-      )}
-
-      {/* Create Fee Plan Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Fee Plan</DialogTitle>
-            <DialogDescription>
-              Create a new fee plan template for your branch
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="planName">Plan Name</Label>
-              <Input
-                id="planName"
-                placeholder="e.g., Monthly Tuition"
-                value={newPlanName}
-                onChange={(e) => setNewPlanName(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="planAmount">Amount (₹)</Label>
-              <Input
-                id="planAmount"
-                type="number"
-                placeholder="Enter amount"
-                value={newPlanAmount}
-                onChange={(e) => setNewPlanAmount(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="planFrequency">Frequency</Label>
-              <Select
-                value={newPlanFrequency}
-                onValueChange={(v) => setNewPlanFrequency(v as FeeFrequency)}
-              >
-                <SelectTrigger id="planFrequency">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => setShowCreateDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreatePlan}
-              disabled={!newPlanName || !newPlanAmount || isCreating}
-            >
-              {isCreating ? "Creating..." : "Create Plan"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -781,10 +680,13 @@ function ReceiptsTab({
   const receipts = data?.data ?? [];
   const pagination = data?.pagination;
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
-    setCurrentPage(1);
-  }, [setCurrentPage]);
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchQuery(value);
+      setCurrentPage(1);
+    },
+    [setCurrentPage],
+  );
 
   const handleDownloadPDF = async (receiptId: string) => {
     setIsDownloading(receiptId);
@@ -813,7 +715,9 @@ function ReceiptsTab({
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-text-muted" />
-            <span className="font-mono text-sm">{row.original.receiptNumber}</span>
+            <span className="font-mono text-sm">
+              {row.original.receiptNumber}
+            </span>
           </div>
         ),
       },
@@ -823,7 +727,10 @@ function ReceiptsTab({
         cell: ({ row }) => (
           <div>
             <p className="font-medium">{row.original.student.fullName}</p>
-            <p className="text-xs text-text-muted">{row.original.feePlan.name}</p>
+            <p className="text-xs text-text-muted">
+              Installment #{row.original.installment.installmentNumber} •{" "}
+              {row.original.session.name}
+            </p>
           </div>
         ),
       },
@@ -831,7 +738,9 @@ function ReceiptsTab({
         accessorKey: "amount",
         header: "Amount",
         cell: ({ row }) => (
-          <span className="font-medium">{formatCurrency(row.original.amount)}</span>
+          <span className="font-medium">
+            {formatCurrency(row.original.amount)}
+          </span>
         ),
       },
       {
@@ -872,7 +781,7 @@ function ReceiptsTab({
         ),
       },
     ],
-    [isDownloading]
+    [isDownloading],
   );
 
   if (error) {
@@ -880,7 +789,9 @@ function ReceiptsTab({
       <Card className="border-red-200 bg-red-50">
         <CardContent className="flex items-center gap-3 py-4">
           <AlertCircle className="h-5 w-5 text-error" />
-          <p className="text-sm text-error">Failed to load receipts. Please try again.</p>
+          <p className="text-sm text-error">
+            Failed to load receipts. Please try again.
+          </p>
         </CardContent>
       </Card>
     );
@@ -980,11 +891,15 @@ function PaymentLinksTab({
   const { data, isLoading, error } = usePaymentLinks({
     page: currentPage,
     limit: PAGINATION_DEFAULTS.LIMIT,
-    status: statusFilter !== "__all__" ? (statusFilter as "active" | "expired" | "paid" | "cancelled") : undefined,
+    status:
+      statusFilter !== "__all__"
+        ? (statusFilter as "active" | "expired" | "paid" | "cancelled")
+        : undefined,
     search: debouncedSearch || undefined,
   });
 
-  const { mutate: cancelLink, isPending: isCancelling } = useCancelPaymentLink();
+  const { mutate: cancelLink, isPending: isCancelling } =
+    useCancelPaymentLink();
 
   const links = data?.data ?? [];
   const pagination = data?.pagination;
@@ -1007,7 +922,7 @@ function PaymentLinksTab({
 
   const getStatusBadge = (status: string, expiresAt: string) => {
     const isExpired = new Date(expiresAt) < new Date();
-    
+
     if (status === "paid") {
       return <Badge variant="success">Paid</Badge>;
     }
@@ -1028,7 +943,10 @@ function PaymentLinksTab({
         cell: ({ row }) => (
           <div>
             <p className="font-medium">{row.original.studentName}</p>
-            <p className="text-xs text-text-muted">{row.original.feePlanName}</p>
+            <p className="text-xs text-text-muted">
+              Installment #{row.original.installmentNumber} •{" "}
+              {row.original.sessionName}
+            </p>
           </div>
         ),
       },
@@ -1036,13 +954,16 @@ function PaymentLinksTab({
         accessorKey: "amount",
         header: "Amount",
         cell: ({ row }) => (
-          <span className="font-medium">{formatCurrency(row.original.amount)}</span>
+          <span className="font-medium">
+            {formatCurrency(row.original.amount)}
+          </span>
         ),
       },
       {
         accessorKey: "status",
         header: "Status",
-        cell: ({ row }) => getStatusBadge(row.original.status, row.original.expiresAt),
+        cell: ({ row }) =>
+          getStatusBadge(row.original.status, row.original.expiresAt),
       },
       {
         accessorKey: "expiresAt",
@@ -1063,8 +984,9 @@ function PaymentLinksTab({
         header: "",
         cell: ({ row }) => {
           const link = row.original;
-          const isActive = link.status === "active" && new Date(link.expiresAt) > new Date();
-          
+          const isActive =
+            link.status === "active" && new Date(link.expiresAt) > new Date();
+
           return (
             <div className="flex items-center gap-1">
               {isActive && (
@@ -1106,7 +1028,7 @@ function PaymentLinksTab({
         },
       },
     ],
-    [copiedId, isCancelling]
+    [copiedId, isCancelling],
   );
 
   if (error) {
@@ -1114,7 +1036,9 @@ function PaymentLinksTab({
       <Card className="border-red-200 bg-red-50">
         <CardContent className="flex items-center gap-3 py-4">
           <AlertCircle className="h-5 w-5 text-error" />
-          <p className="text-sm text-error">Failed to load payment links. Please try again.</p>
+          <p className="text-sm text-error">
+            Failed to load payment links. Please try again.
+          </p>
         </CardContent>
       </Card>
     );
@@ -1128,8 +1052,9 @@ function PaymentLinksTab({
         <div>
           <p className="font-medium">Payment Links</p>
           <p className="mt-1 text-xs opacity-90">
-            Create payment links from the Pending Fees tab by clicking the link icon on any fee entry.
-            Links can be shared with parents for online payment via Razorpay.
+            Create payment links from the Pending Fees tab by clicking the link
+            icon on any fee entry. Links can be shared with parents for online
+            payment via Razorpay.
           </p>
         </div>
       </div>
@@ -1175,7 +1100,10 @@ function PaymentLinksTab({
       </div>
 
       {/* Table */}
-      {!isLoading && links.length === 0 && !searchQuery && statusFilter === "__all__" ? (
+      {!isLoading &&
+      links.length === 0 &&
+      !searchQuery &&
+      statusFilter === "__all__" ? (
         <Card>
           <EmptyState
             icon={LinkIcon}
@@ -1230,15 +1158,21 @@ function FeeComponentsTab() {
   const [newDescription, setNewDescription] = useState("");
 
   const { data, isLoading } = useFeeComponents({ limit: 50 });
-  const { mutate: createComponent, isPending: isCreating } = useCreateFeeComponent();
-  const { mutate: deleteComponent, isPending: isDeleting } = useDeleteFeeComponent();
+  const { mutate: createComponent, isPending: isCreating } =
+    useCreateFeeComponent();
+  const { mutate: deleteComponent, isPending: isDeleting } =
+    useDeleteFeeComponent();
 
   const components = data?.data ?? [];
 
   const handleCreate = () => {
     if (!newName) return;
     createComponent(
-      { name: newName, type: newType as FeeComponent["type"], description: newDescription || undefined },
+      {
+        name: newName,
+        type: newType as FeeComponent["type"],
+        description: newDescription || undefined,
+      },
       {
         onSuccess: () => {
           setShowCreateDialog(false);
@@ -1246,7 +1180,7 @@ function FeeComponentsTab() {
           setNewType("tuition");
           setNewDescription("");
         },
-      }
+      },
     );
   };
 
@@ -1296,7 +1230,9 @@ function FeeComponentsTab() {
                       {comp.type.replace("_", " ")}
                     </Badge>
                     {comp.description && (
-                      <p className="text-sm text-text-muted mt-2">{comp.description}</p>
+                      <p className="text-sm text-text-muted mt-2">
+                        {comp.description}
+                      </p>
                     )}
                   </div>
                   <Button
@@ -1362,7 +1298,10 @@ function FeeComponentsTab() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setShowCreateDialog(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowCreateDialog(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleCreate} disabled={!newName || isCreating}>
@@ -1381,14 +1320,18 @@ function FeeComponentsTab() {
 function ScholarshipsTab() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<"percentage" | "fixed_amount">("percentage");
+  const [newType, setNewType] = useState<"percentage" | "fixed_amount">(
+    "percentage",
+  );
   const [newBasis, setNewBasis] = useState("merit");
   const [newValue, setNewValue] = useState("");
   const [newDescription, setNewDescription] = useState("");
 
   const { data, isLoading } = useScholarships({ limit: 50 });
-  const { mutate: createScholarship, isPending: isCreating } = useCreateScholarship();
-  const { mutate: deleteScholarship, isPending: isDeleting } = useDeleteScholarship();
+  const { mutate: createScholarship, isPending: isCreating } =
+    useCreateScholarship();
+  const { mutate: deleteScholarship, isPending: isDeleting } =
+    useDeleteScholarship();
 
   const scholarships = data?.data ?? [];
 
@@ -1411,7 +1354,7 @@ function ScholarshipsTab() {
           setNewValue("");
           setNewDescription("");
         },
-      }
+      },
     );
   };
 
@@ -1468,7 +1411,9 @@ function ScholarshipsTab() {
                       </Badge>
                     </div>
                     {sch.description && (
-                      <p className="text-sm text-text-muted mt-2">{sch.description}</p>
+                      <p className="text-sm text-text-muted mt-2">
+                        {sch.description}
+                      </p>
                     )}
                   </div>
                   <Button
@@ -1507,7 +1452,10 @@ function ScholarshipsTab() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="schType">Type</Label>
-                <Select value={newType} onValueChange={(v) => setNewType(v as typeof newType)}>
+                <Select
+                  value={newType}
+                  onValueChange={(v) => setNewType(v as typeof newType)}
+                >
                   <SelectTrigger id="schType">
                     <SelectValue />
                   </SelectTrigger>
@@ -1524,7 +1472,9 @@ function ScholarshipsTab() {
                 <Input
                   id="schValue"
                   type="number"
-                  placeholder={newType === "percentage" ? "e.g., 25" : "e.g., 5000"}
+                  placeholder={
+                    newType === "percentage" ? "e.g., 25" : "e.g., 5000"
+                  }
                   value={newValue}
                   onChange={(e) => setNewValue(e.target.value)}
                 />
@@ -1558,10 +1508,16 @@ function ScholarshipsTab() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setShowCreateDialog(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowCreateDialog(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={!newName || !newValue || isCreating}>
+            <Button
+              onClick={handleCreate}
+              disabled={!newName || !newValue || isCreating}
+            >
               {isCreating ? "Creating..." : "Create"}
             </Button>
           </DialogFooter>
@@ -1581,7 +1537,8 @@ function EMITemplatesTab() {
   const [isDefault, setIsDefault] = useState(false);
 
   const { data, isLoading } = useEMITemplates();
-  const { mutate: createTemplate, isPending: isCreating } = useCreateEMITemplate();
+  const { mutate: createTemplate, isPending: isCreating } =
+    useCreateEMITemplate();
 
   const templates = data ?? [];
 
@@ -1594,7 +1551,10 @@ function EMITemplatesTab() {
 
     // Generate split config - equal distribution with remainder in last
     const splitConfig = Array.from({ length: count }, (_, i) => ({
-      percent: i === count - 1 ? percentPerInstallment + remainder : percentPerInstallment,
+      percent:
+        i === count - 1
+          ? percentPerInstallment + remainder
+          : percentPerInstallment,
       dueDaysFromStart: i * Math.floor(365 / count),
     }));
 
@@ -1612,7 +1572,7 @@ function EMITemplatesTab() {
           setNewInstallmentCount("4");
           setIsDefault(false);
         },
-      }
+      },
     );
   };
 
@@ -1653,7 +1613,10 @@ function EMITemplatesTab() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {templates.map((tmpl) => (
-            <Card key={tmpl.id} className={tmpl.isDefault ? "border-primary-500" : ""}>
+            <Card
+              key={tmpl.id}
+              className={tmpl.isDefault ? "border-primary-500" : ""}
+            >
               <CardContent className="pt-4">
                 <div className="flex items-start justify-between">
                   <div>
@@ -1669,7 +1632,12 @@ function EMITemplatesTab() {
                       {tmpl.installmentCount} installments
                     </p>
                     <div className="mt-2 text-xs text-text-muted">
-                      {(tmpl.splitConfig as Array<{ percent: number; dueDaysFromStart: number }>)
+                      {(
+                        tmpl.splitConfig as Array<{
+                          percent: number;
+                          dueDaysFromStart: number;
+                        }>
+                      )
                         .slice(0, 4)
                         .map((split, idx) => (
                           <span key={idx}>
@@ -1707,7 +1675,10 @@ function EMITemplatesTab() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="emiCount">Number of Installments</Label>
-              <Select value={newInstallmentCount} onValueChange={setNewInstallmentCount}>
+              <Select
+                value={newInstallmentCount}
+                onValueChange={setNewInstallmentCount}
+              >
                 <SelectTrigger id="emiCount">
                   <SelectValue />
                 </SelectTrigger>
@@ -1735,7 +1706,10 @@ function EMITemplatesTab() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setShowCreateDialog(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowCreateDialog(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleCreate} disabled={!newName || isCreating}>

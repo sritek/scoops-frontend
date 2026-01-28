@@ -16,6 +16,7 @@ import type {
   GenerateInstallmentsInput,
   RecordInstallmentPaymentInput,
   InstallmentStatus,
+  EMIPlanTemplateApiResponse,
 } from "@/types/fee";
 import type { PaginatedResponse, PaginationParams } from "@/types";
 
@@ -30,33 +31,44 @@ export interface FeeComponentsParams extends PaginationParams {
 
 export const feeComponentsKeys = {
   all: ["fee-components"] as const,
-  list: (params?: FeeComponentsParams) => [...feeComponentsKeys.all, "list", params] as const,
+  list: (params?: FeeComponentsParams) =>
+    [...feeComponentsKeys.all, "list", params] as const,
   allActive: () => [...feeComponentsKeys.all, "all"] as const,
   detail: (id: string) => [...feeComponentsKeys.all, "detail", id] as const,
 };
 
 async function fetchFeeComponents(
-  params: FeeComponentsParams = {}
+  params: FeeComponentsParams = {},
 ): Promise<PaginatedResponse<FeeComponent>> {
   const searchParams = new URLSearchParams();
   if (params.page) searchParams.set("page", String(params.page));
   if (params.limit) searchParams.set("limit", String(params.limit));
-  if (params.isActive !== undefined) searchParams.set("isActive", String(params.isActive));
+  if (params.isActive !== undefined)
+    searchParams.set("isActive", String(params.isActive));
   if (params.type) searchParams.set("type", params.type);
 
   const queryString = searchParams.toString();
-  const endpoint = queryString ? `/fees/components?${queryString}` : "/fees/components";
+  const endpoint = queryString
+    ? `/fees/components?${queryString}`
+    : "/fees/components";
 
   return apiClient.get<PaginatedResponse<FeeComponent>>(endpoint);
 }
 
 async function fetchAllFeeComponents(): Promise<FeeComponent[]> {
-  const response = await apiClient.get<{ data: FeeComponent[] }>("/fees/components/all");
+  const response = await apiClient.get<{ data: FeeComponent[] }>(
+    "/fees/components/all",
+  );
   return response.data;
 }
 
-async function createFeeComponent(data: CreateFeeComponentInput): Promise<FeeComponent> {
-  const response = await apiClient.post<{ data: FeeComponent }>("/fees/components", data);
+async function createFeeComponent(
+  data: CreateFeeComponentInput,
+): Promise<FeeComponent> {
+  const response = await apiClient.post<{ data: FeeComponent }>(
+    "/fees/components",
+    data,
+  );
   return response.data;
 }
 
@@ -67,7 +79,10 @@ async function updateFeeComponent({
   id: string;
   data: UpdateFeeComponentInput;
 }): Promise<FeeComponent> {
-  const response = await apiClient.patch<{ data: FeeComponent }>(`/fees/components/${id}`, data);
+  const response = await apiClient.patch<{ data: FeeComponent }>(
+    `/fees/components/${id}`,
+    data,
+  );
   return response.data;
 }
 
@@ -127,18 +142,23 @@ export function useDeleteFeeComponent() {
 
 export const batchFeeStructureKeys = {
   all: ["batch-fee-structure"] as const,
-  list: (sessionId?: string) => [...batchFeeStructureKeys.all, "list", sessionId] as const,
+  list: (sessionId?: string) =>
+    [...batchFeeStructureKeys.all, "list", sessionId] as const,
   byBatch: (batchId: string, sessionId: string) =>
     [...batchFeeStructureKeys.all, "batch", batchId, sessionId] as const,
   detail: (id: string) => [...batchFeeStructureKeys.all, "detail", id] as const,
 };
 
-async function fetchBatchFeeStructures(sessionId?: string): Promise<BatchFeeStructure[]> {
+async function fetchBatchFeeStructures(
+  sessionId?: string,
+): Promise<BatchFeeStructure[]> {
   const searchParams = new URLSearchParams();
   if (sessionId) searchParams.set("sessionId", sessionId);
 
   const queryString = searchParams.toString();
-  const endpoint = queryString ? `/fees/batch-structure?${queryString}` : "/fees/batch-structure";
+  const endpoint = queryString
+    ? `/fees/batch-structure?${queryString}`
+    : "/fees/batch-structure";
 
   const response = await apiClient.get<{ data: BatchFeeStructure[] }>(endpoint);
   return response.data;
@@ -146,16 +166,21 @@ async function fetchBatchFeeStructures(sessionId?: string): Promise<BatchFeeStru
 
 async function fetchBatchFeeStructureByBatch(
   batchId: string,
-  sessionId: string
+  sessionId: string,
 ): Promise<BatchFeeStructure | null> {
   const response = await apiClient.get<{ data: BatchFeeStructure | null }>(
-    `/fees/batch-structure/${batchId}?sessionId=${sessionId}`
+    `/fees/batch-structure/${batchId}?sessionId=${sessionId}`,
   );
   return response.data;
 }
 
-async function createBatchFeeStructure(data: CreateBatchFeeStructureInput): Promise<BatchFeeStructure> {
-  const response = await apiClient.post<{ data: BatchFeeStructure }>("/fees/batch-structure", data);
+async function createBatchFeeStructure(
+  data: CreateBatchFeeStructureInput,
+): Promise<BatchFeeStructure> {
+  const response = await apiClient.post<{ data: BatchFeeStructure }>(
+    "/fees/batch-structure",
+    data,
+  );
   return response.data;
 }
 
@@ -166,10 +191,9 @@ async function applyBatchFeeStructureToStudents({
   id: string;
   overwriteExisting?: boolean;
 }): Promise<{ applied: number; skipped: number; message: string }> {
-  const response = await apiClient.post<{ data: { applied: number; skipped: number; message: string } }>(
-    `/fees/batch-structure/${id}/apply`,
-    { overwriteExisting }
-  );
+  const response = await apiClient.post<{
+    data: { applied: number; skipped: number; message: string };
+  }>(`/fees/batch-structure/${id}/apply`, { overwriteExisting });
   return response.data;
 }
 
@@ -181,7 +205,10 @@ export function useBatchFeeStructures(sessionId?: string) {
   });
 }
 
-export function useBatchFeeStructureByBatch(batchId: string | null, sessionId: string | null) {
+export function useBatchFeeStructureByBatch(
+  batchId: string | null,
+  sessionId: string | null,
+) {
   return useQuery({
     queryKey: batchFeeStructureKeys.byBatch(batchId || "", sessionId || ""),
     queryFn: () => fetchBatchFeeStructureByBatch(batchId!, sessionId!),
@@ -218,41 +245,44 @@ export const studentFeeStructureKeys = {
   all: ["student-fee-structure"] as const,
   byStudent: (studentId: string, sessionId?: string) =>
     [...studentFeeStructureKeys.all, "student", studentId, sessionId] as const,
-  detail: (id: string) => [...studentFeeStructureKeys.all, "detail", id] as const,
+  detail: (id: string) =>
+    [...studentFeeStructureKeys.all, "detail", id] as const,
   summary: (studentId: string, sessionId?: string) =>
     [...studentFeeStructureKeys.all, "summary", studentId, sessionId] as const,
 };
 
 async function fetchStudentFeeStructure(
   studentId: string,
-  sessionId: string
+  sessionId: string,
 ): Promise<StudentFeeStructure | null> {
   const response = await apiClient.get<{ data: StudentFeeStructure | null }>(
-    `/fees/student-structure/${studentId}?sessionId=${sessionId}`
+    `/fees/student-structure/${studentId}?sessionId=${sessionId}`,
   );
   return response.data;
 }
 
-async function fetchStudentFeeStructureById(id: string): Promise<StudentFeeStructure> {
+async function fetchStudentFeeStructureById(
+  id: string,
+): Promise<StudentFeeStructure> {
   const response = await apiClient.get<{ data: StudentFeeStructure }>(
-    `/fees/student-structure/id/${id}`
+    `/fees/student-structure/id/${id}`,
   );
   return response.data;
 }
 
 async function createStudentFeeStructure(
-  data: CreateStudentFeeStructureInput
+  data: CreateStudentFeeStructureInput,
 ): Promise<StudentFeeStructure> {
   const response = await apiClient.post<{ data: StudentFeeStructure }>(
     "/fees/student-structure",
-    data
+    data,
   );
   return response.data;
 }
 
 async function fetchStudentFeeSummary(
   studentId: string,
-  sessionId?: string
+  sessionId?: string,
 ): Promise<StudentFeeSummary> {
   const searchParams = new URLSearchParams();
   if (sessionId) searchParams.set("sessionId", sessionId);
@@ -266,9 +296,15 @@ async function fetchStudentFeeSummary(
   return response.data;
 }
 
-export function useStudentFeeStructure(studentId: string | null, sessionId: string | null) {
+export function useStudentFeeStructure(
+  studentId: string | null,
+  sessionId: string | null,
+) {
   return useQuery({
-    queryKey: studentFeeStructureKeys.byStudent(studentId || "", sessionId || undefined),
+    queryKey: studentFeeStructureKeys.byStudent(
+      studentId || "",
+      sessionId || undefined,
+    ),
     queryFn: () => fetchStudentFeeStructure(studentId!, sessionId!),
     enabled: !!studentId && !!sessionId,
     staleTime: 2 * 60 * 1000,
@@ -296,7 +332,10 @@ export function useCreateStudentFeeStructure() {
   });
 }
 
-export function useStudentFeeSummary(studentId: string | null, sessionId?: string) {
+export function useStudentFeeSummary(
+  studentId: string | null,
+  sessionId?: string,
+) {
   return useQuery({
     queryKey: studentFeeStructureKeys.summary(studentId || "", sessionId),
     queryFn: () => fetchStudentFeeSummary(studentId!, sessionId),
@@ -316,12 +355,22 @@ export const emiTemplateKeys = {
 };
 
 async function fetchEMITemplates(): Promise<EMIPlanTemplate[]> {
-  const response = await apiClient.get<{ data: EMIPlanTemplate[] }>("/emi-templates");
-  return response.data;
+  const response = await apiClient.get<{ data: EMIPlanTemplateApiResponse[] }>(
+    "/emi-templates",
+  );
+  return response.data.map((tmpl) => ({
+    ...tmpl,
+    splitConfig: JSON.parse(tmpl.splitConfig),
+  }));
 }
 
-async function createEMITemplate(data: CreateEMIPlanTemplateInput): Promise<EMIPlanTemplate> {
-  const response = await apiClient.post<{ data: EMIPlanTemplate }>("/emi-templates", data);
+async function createEMITemplate(
+  data: CreateEMIPlanTemplateInput,
+): Promise<EMIPlanTemplate> {
+  const response = await apiClient.post<{ data: EMIPlanTemplate }>(
+    "/emi-templates",
+    data,
+  );
   return response.data;
 }
 
@@ -361,7 +410,7 @@ export const installmentsKeys = {
 };
 
 async function fetchPendingInstallments(
-  params: PendingInstallmentsParams = {}
+  params: PendingInstallmentsParams = {},
 ): Promise<PaginatedResponse<PendingInstallment>> {
   const searchParams = new URLSearchParams();
   if (params.page) searchParams.set("page", String(params.page));
@@ -379,8 +428,15 @@ async function fetchPendingInstallments(
 
 async function fetchStudentInstallments(
   studentId: string,
-  sessionId?: string
-): Promise<Array<{ sessionId: string; session: { id: string; name: string; isCurrent: boolean }; netAmount: number; installments: FeeInstallment[] }>> {
+  sessionId?: string,
+): Promise<
+  Array<{
+    sessionId: string;
+    session: { id: string; name: string; isCurrent: boolean };
+    netAmount: number;
+    installments: FeeInstallment[];
+  }>
+> {
   const searchParams = new URLSearchParams();
   if (sessionId) searchParams.set("sessionId", sessionId);
 
@@ -389,14 +445,23 @@ async function fetchStudentInstallments(
     ? `/fees/installments/${studentId}?${queryString}`
     : `/fees/installments/${studentId}`;
 
-  const response = await apiClient.get<{ data: Array<{ sessionId: string; session: { id: string; name: string; isCurrent: boolean }; netAmount: number; installments: FeeInstallment[] }> }>(endpoint);
+  const response = await apiClient.get<{
+    data: Array<{
+      sessionId: string;
+      session: { id: string; name: string; isCurrent: boolean };
+      netAmount: number;
+      installments: FeeInstallment[];
+    }>;
+  }>(endpoint);
   return response.data;
 }
 
-async function generateInstallments(data: GenerateInstallmentsInput): Promise<FeeInstallment[]> {
+async function generateInstallments(
+  data: GenerateInstallmentsInput,
+): Promise<FeeInstallment[]> {
   const response = await apiClient.post<{ data: FeeInstallment[] }>(
     "/fees/installments/generate",
-    data
+    data,
   );
   return response.data;
 }
@@ -408,10 +473,9 @@ async function recordInstallmentPayment({
   installmentId: string;
   data: RecordInstallmentPaymentInput;
 }): Promise<{ payment: unknown; installment: FeeInstallment }> {
-  const response = await apiClient.post<{ data: { payment: unknown; installment: FeeInstallment } }>(
-    `/fees/installments/${installmentId}/payment`,
-    data
-  );
+  const response = await apiClient.post<{
+    data: { payment: unknown; installment: FeeInstallment };
+  }>(`/fees/installments/${installmentId}/payment`, data);
   return response.data;
 }
 
@@ -427,7 +491,10 @@ export function usePendingInstallments(params: PendingInstallmentsParams = {}) {
   });
 }
 
-export function useStudentInstallments(studentId: string | null, sessionId?: string) {
+export function useStudentInstallments(
+  studentId: string | null,
+  sessionId?: string,
+) {
   return useQuery({
     queryKey: installmentsKeys.student(studentId || "", sessionId),
     queryFn: () => fetchStudentInstallments(studentId!, sessionId),

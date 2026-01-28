@@ -1,116 +1,13 @@
 /**
  * Fee API Types
- * Matches backend GET /fees response
+ * Consolidated fee system using FeeComponent, BatchFeeStructure,
+ * StudentFeeStructure, FeeInstallment, and InstallmentPayment
  */
 
-export type FeeFrequency = "monthly" | "custom";
-export type FeeStatus = "pending" | "partial" | "paid";
 export type PaymentMode = "cash" | "upi" | "bank";
 
-/**
- * Fee Plan (template for fees)
- */
-export interface FeePlan {
-  id: string;
-  orgId: string;
-  branchId: string;
-  name: string;
-  amount: number;
-  frequency: FeeFrequency;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Student fee record
- */
-export interface StudentFee {
-  id: string;
-  student: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    fullName: string;
-  };
-  feePlan: {
-    id: string;
-    name: string;
-  };
-  dueDate: string;
-  totalAmount: number;
-  paidAmount: number;
-  pendingAmount: number;
-  status: FeeStatus;
-}
-
-/**
- * Fee payment record
- */
-export interface FeePayment {
-  id: string;
-  amount: number;
-  paymentMode: PaymentMode;
-  receivedAt: string;
-  receivedBy: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    fullName: string;
-  };
-}
-
-/**
- * Student fee with payments
- */
-export interface StudentFeeWithPayments extends StudentFee {
-  payments: FeePayment[];
-}
-
-/**
- * Student fees response
- */
-export interface StudentFeesResponse {
-  student: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    fullName: string;
-  };
-  fees: StudentFeeWithPayments[];
-}
-
-/**
- * Create fee plan input
- */
-export interface CreateFeePlanInput {
-  name: string;
-  amount: number;
-  frequency: FeeFrequency;
-}
-
-/**
- * Assign fee input
- */
-export interface AssignFeeInput {
-  studentId: string;
-  feePlanId: string;
-  dueDate: string;
-  totalAmount?: number;
-}
-
-/**
- * Record payment input
- */
-export interface RecordPaymentInput {
-  studentFeeId: string;
-  amount: number;
-  paymentMode: PaymentMode;
-  notes?: string;
-}
-
 // =====================
-// Fee Component Types (Phase 3)
+// Fee Component Types
 // =====================
 
 export type FeeComponentType =
@@ -305,7 +202,12 @@ export interface StudentFeeSummary {
 // Installment Types (Phase 3)
 // =====================
 
-export type InstallmentStatus = "upcoming" | "due" | "overdue" | "partial" | "paid";
+export type InstallmentStatus =
+  | "upcoming"
+  | "due"
+  | "overdue"
+  | "partial"
+  | "paid";
 
 /**
  * Fee Installment
@@ -404,6 +306,17 @@ export interface EMIPlanTemplate {
   createdAt: string;
 }
 
+export interface EMIPlanTemplateApiResponse {
+  id: string;
+  orgId: string;
+  name: string;
+  installmentCount: number;
+  splitConfig: string;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: string;
+}
+
 /**
  * Create EMI template input
  */
@@ -428,7 +341,7 @@ export interface GenerateInstallmentsInput {
 // =====================
 
 /**
- * Receipt entity from API
+ * Receipt entity from API (references InstallmentPayment)
  */
 export interface Receipt {
   id: string;
@@ -442,7 +355,13 @@ export interface Receipt {
     lastName: string;
     fullName: string;
   };
-  feePlan: {
+  installment: {
+    id: string;
+    installmentNumber: number;
+    dueDate: string;
+    amount: number;
+  };
+  session: {
     id: string;
     name: string;
   };
@@ -455,9 +374,14 @@ export interface Receipt {
 }
 
 /**
- * Detailed receipt with organization info
+ * Detailed receipt with organization info (references InstallmentPayment)
  */
-export interface ReceiptDetails extends Receipt {
+export interface ReceiptDetails {
+  id: string;
+  receiptNumber: string;
+  amount: number;
+  paymentMode: PaymentMode;
+  generatedAt: string;
   organization: {
     name: string;
     phone: string | null;
@@ -475,10 +399,39 @@ export interface ReceiptDetails extends Receipt {
       name: string;
     } | null;
   };
-  studentFee: {
-    totalAmount: number;
-    paidAmount: number;
+  session: {
+    id: string;
+    name: string;
+  };
+  feeStructure: {
+    id: string;
+    grossAmount: number;
+    scholarshipAmount: number;
+    netAmount: number;
+    lineItems: Array<{
+      id: string;
+      feeComponent: {
+        id: string;
+        name: string;
+        type: FeeComponentType;
+      };
+      originalAmount: number;
+      adjustedAmount: number;
+      waived: boolean;
+    }>;
+  };
+  installment: {
+    id: string;
+    installmentNumber: number;
+    amount: number;
     dueDate: string;
-    status: FeeStatus;
+    paidAmount: number;
+    status: InstallmentStatus;
+  };
+  receivedBy: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    fullName: string;
   };
 }

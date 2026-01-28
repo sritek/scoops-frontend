@@ -77,7 +77,7 @@ const sampleBatches: Batch[] = [
 function createPaginatedResponse(
   data: Batch[],
   page = 1,
-  total?: number
+  total?: number,
 ): PaginatedResponse<Batch> {
   const actualTotal = total ?? data.length;
   const limit = 20;
@@ -119,33 +119,41 @@ describe("BatchesPage", () => {
   });
 
   describe("Permission-gated UI - Admin vs Teacher vs Staff", () => {
-    it("shows 'Create Batch' button when user has BATCH_CREATE permission (admin)", () => {
-      mockCan.mockImplementation((permission: string) => permission === "BATCH_CREATE");
+    it("shows 'Create Batch' button when user has STUDENT_EDIT permission (admin)", () => {
+      mockCan.mockImplementation(
+        (permission: string) => permission === "STUDENT_EDIT",
+      );
 
       render(<BatchesPage />, { wrapper: createWrapper() });
 
-      expect(screen.getByRole("button", { name: /create batch/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: /create batch/i }),
+      ).toBeInTheDocument();
     });
 
-    it("hides 'Create Batch' button when user lacks BATCH_CREATE permission (teacher)", () => {
+    it("hides 'Create Batch' button when user lacks STUDENT_EDIT permission (teacher)", () => {
       mockCan.mockReturnValue(false);
 
       render(<BatchesPage />, { wrapper: createWrapper() });
 
-      expect(screen.queryByRole("button", { name: /create batch/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /create batch/i }),
+      ).not.toBeInTheDocument();
     });
 
-    it("hides 'Create Batch' button for staff users without create permissions", () => {
+    it("hides 'Create Batch' button for staff users without edit permissions", () => {
       mockCan.mockReturnValue(false);
 
       render(<BatchesPage />, { wrapper: createWrapper() });
 
-      expect(screen.queryByRole("button", { name: /create batch/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /create batch/i }),
+      ).not.toBeInTheDocument();
     });
   });
 
   describe("Loading and Empty States", () => {
-    it("shows loading spinner when data is loading", () => {
+    it("shows loading skeleton when data is loading", () => {
       mockBatchesData.mockReturnValue({
         data: undefined,
         isLoading: true,
@@ -154,9 +162,9 @@ describe("BatchesPage", () => {
 
       render(<BatchesPage />, { wrapper: createWrapper() });
 
-      // Spinner has role="status"
-      const spinners = screen.getAllByRole("status");
-      expect(spinners.length).toBeGreaterThan(0);
+      // DataTable shows TableSkeleton with animated pulse elements
+      const skeletons = document.querySelectorAll(".animate-pulse");
+      expect(skeletons.length).toBeGreaterThan(0);
     });
 
     it("shows empty state when no batches exist", () => {
@@ -212,8 +220,10 @@ describe("BatchesPage", () => {
   });
 
   describe("Empty state with CTA", () => {
-    it("shows 'Create Batch' button in empty state when user has BATCH_CREATE permission", () => {
-      mockCan.mockImplementation((permission: string) => permission === "BATCH_CREATE");
+    it("shows 'Create Batch' button in empty state when user has STUDENT_EDIT permission", () => {
+      mockCan.mockImplementation(
+        (permission: string) => permission === "STUDENT_EDIT",
+      );
       mockBatchesData.mockReturnValue({
         data: createPaginatedResponse([]),
         isLoading: false,
@@ -222,12 +232,14 @@ describe("BatchesPage", () => {
 
       render(<BatchesPage />, { wrapper: createWrapper() });
 
-      // Should have two Create Batch buttons - header and empty state
-      const createButtons = screen.getAllByRole("button", { name: /create batch/i });
-      expect(createButtons).toHaveLength(2);
+      // Should have two Create Batch links - header and empty state
+      const createLinks = screen.getAllByRole("link", {
+        name: /create batch/i,
+      });
+      expect(createLinks).toHaveLength(2);
     });
 
-    it("hides 'Create Batch' button in empty state when user lacks BATCH_CREATE permission", () => {
+    it("hides 'Create Batch' button in empty state when user lacks STUDENT_EDIT permission", () => {
       mockCan.mockReturnValue(false);
       mockBatchesData.mockReturnValue({
         data: createPaginatedResponse([]),
@@ -237,7 +249,9 @@ describe("BatchesPage", () => {
 
       render(<BatchesPage />, { wrapper: createWrapper() });
 
-      expect(screen.queryByRole("button", { name: /create batch/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /create batch/i }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -254,7 +268,9 @@ describe("BatchesPage", () => {
       render(<BatchesPage />, { wrapper: createWrapper() });
 
       // Should show Previous/Next buttons
-      expect(screen.getByRole("button", { name: /previous/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /previous/i }),
+      ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument();
     });
 
@@ -268,8 +284,12 @@ describe("BatchesPage", () => {
       render(<BatchesPage />, { wrapper: createWrapper() });
 
       // Should not show Previous/Next buttons for single page
-      expect(screen.queryByRole("button", { name: /previous/i })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /next/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /previous/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /next/i }),
+      ).not.toBeInTheDocument();
     });
   });
 });

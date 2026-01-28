@@ -1,15 +1,21 @@
 export { apiClient } from "./client";
 export { useDashboard, dashboardKeys } from "./dashboard";
-export { useStudents, useStudent, useCreateStudent, useUpdateStudent, useDeleteStudent, studentsKeys } from "./students";
-export { useBatches, useCreateBatch, useUpdateBatch, batchesKeys } from "./batches";
+export {
+  useStudents,
+  useStudent,
+  useCreateStudent,
+  useUpdateStudent,
+  useDeleteStudent,
+  studentsKeys,
+} from "./students";
+export {
+  useBatches,
+  useCreateBatch,
+  useUpdateBatch,
+  batchesKeys,
+} from "./batches";
 export { useAttendance, useMarkAttendance, attendanceKeys } from "./attendance";
 export {
-  useFeePlans,
-  usePendingFees,
-  useStudentFees,
-  useCreateFeePlan,
-  useAssignFee,
-  useRecordPayment,
   useReceipts,
   useReceipt,
   useSendReceiptViaWhatsApp,
@@ -167,7 +173,10 @@ export {
   emiTemplateKeys,
   installmentsKeys,
 } from "./installments";
-export type { FeeComponentsParams, PendingInstallmentsParams } from "./installments";
+export type {
+  FeeComponentsParams,
+  PendingInstallmentsParams,
+} from "./installments";
 
 // Health
 export {

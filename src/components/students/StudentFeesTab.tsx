@@ -49,33 +49,55 @@ interface StudentFeesTabProps {
  */
 export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
   const [showCreateFeeDialog, setShowCreateFeeDialog] = useState(false);
-  const [showAssignScholarshipDialog, setShowAssignScholarshipDialog] = useState(false);
-  const [showGenerateInstallmentsDialog, setShowGenerateInstallmentsDialog] = useState(false);
+  const [showAssignScholarshipDialog, setShowAssignScholarshipDialog] =
+    useState(false);
+  const [showGenerateInstallmentsDialog, setShowGenerateInstallmentsDialog] =
+    useState(false);
 
-  const { data: feeSummary, isLoading: summaryLoading, refetch: refetchSummary } = useStudentFeeSummary(studentId);
-  const { data: scholarships, isLoading: scholarshipsLoading, refetch: refetchScholarships } = useStudentScholarships(studentId);
-  const { data: installments, isLoading: installmentsLoading, refetch: refetchInstallments } = useStudentInstallments(studentId);
+  const {
+    data: feeSummary,
+    isLoading: summaryLoading,
+    refetch: refetchSummary,
+  } = useStudentFeeSummary(studentId);
+  const {
+    data: scholarships,
+    isLoading: scholarshipsLoading,
+    refetch: refetchScholarships,
+  } = useStudentScholarships(studentId);
+  const {
+    data: installments,
+    isLoading: installmentsLoading,
+    refetch: refetchInstallments,
+  } = useStudentInstallments(studentId);
   const removeScholarship = useRemoveStudentScholarship();
 
-  const isLoading = summaryLoading || scholarshipsLoading || installmentsLoading;
+  const isLoading =
+    summaryLoading || scholarshipsLoading || installmentsLoading;
 
   if (isLoading) {
     return <FeesTabSkeleton />;
   }
 
   const currentSessionStructure = feeSummary?.feeStructures.find(
-    (fs) => fs.session.isCurrent
+    (fs) => fs.session.isCurrent,
   );
 
   const currentInstallments = installments?.find(
-    (i) => i.session.isCurrent
+    (i) => i.session.isCurrent,
   )?.installments;
 
   const hasFeeStructure = !!currentSessionStructure;
   const hasInstallments = currentInstallments && currentInstallments.length > 0;
 
-  const handleRemoveScholarship = async (scholarshipId: string, scholarshipName: string) => {
-    if (!confirm(`Are you sure you want to remove the "${scholarshipName}" scholarship?`)) {
+  const handleRemoveScholarship = async (
+    scholarshipId: string,
+    scholarshipName: string,
+  ) => {
+    if (
+      !confirm(
+        `Are you sure you want to remove the "${scholarshipName}" scholarship?`,
+      )
+    ) {
       return;
     }
 
@@ -153,7 +175,9 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
             label="Pending"
             value={currentSessionStructure?.pendingAmount ?? 0}
             icon={<Clock className="h-4 w-4" />}
-            variant={currentSessionStructure?.pendingAmount ? "warning" : "success"}
+            variant={
+              currentSessionStructure?.pendingAmount ? "warning" : "success"
+            }
           />
         </div>
       )}
@@ -189,8 +213,8 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
                         {ss.scholarship.type === "percentage"
                           ? `${ss.scholarship.value}% off`
                           : ss.scholarship.type === "fixed_amount"
-                          ? `₹${ss.scholarship.value.toLocaleString()} off`
-                          : "Component Waiver"}
+                            ? `₹${ss.scholarship.value.toLocaleString()} off`
+                            : "Component Waiver"}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -200,7 +224,9 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleRemoveScholarship(ss.id, ss.scholarship.name)}
+                        onClick={() =>
+                          handleRemoveScholarship(ss.id, ss.scholarship.name)
+                        }
                         disabled={removeScholarship.isPending}
                         className="text-error hover:text-error hover:bg-error/10"
                       >
@@ -266,7 +292,9 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">₹{inst.amount.toLocaleString()}</p>
+                      <p className="font-medium">
+                        ₹{inst.amount.toLocaleString()}
+                      </p>
                       {inst.paidAmount > 0 && inst.paidAmount < inst.amount && (
                         <p className="text-sm text-success">
                           Paid: ₹{inst.paidAmount.toLocaleString()}
@@ -302,64 +330,81 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
         </Card>
       </div>
 
-      {/* Payment History */}
-      {currentInstallments && currentInstallments.some((i) => i.payments && i.payments.length > 0) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <CheckCircle className="h-5 w-5 text-text-muted" />
-              Recent Payments
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-surface-elevated">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium text-text-muted">
-                      Date
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-text-muted">
-                      Installment
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-text-muted">
-                      Mode
-                    </th>
-                    <th className="px-4 py-3 text-right font-medium text-text-muted">
-                      Amount
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle">
-                  {currentInstallments
-                    .flatMap((inst) =>
-                      (inst.payments || []).map((p) => ({
-                        ...p,
-                        installmentNumber: inst.installmentNumber,
-                      }))
-                    )
-                    .sort(
-                      (a, b) =>
-                        new Date(b.receivedAt).getTime() -
-                        new Date(a.receivedAt).getTime()
-                    )
-                    .slice(0, 10)
-                    .map((payment) => (
-                      <tr key={payment.id} className="hover:bg-surface-hover">
-                        <td className="px-4 py-3">{formatDate(payment.receivedAt)}</td>
-                        <td className="px-4 py-3">#{payment.installmentNumber}</td>
-                        <td className="px-4 py-3 capitalize">{payment.paymentMode}</td>
-                        <td className="px-4 py-3 text-right font-medium">
-                          ₹{payment.amount.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Payment History - Shows InstallmentPayment records */}
+      {currentInstallments &&
+        currentInstallments.some(
+          (i) => i.payments && i.payments.length > 0,
+        ) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <CheckCircle className="h-5 w-5 text-text-muted" />
+                Payment History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface-elevated">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium text-text-muted">
+                        Date
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium text-text-muted">
+                        Installment
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium text-text-muted">
+                        Mode
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium text-text-muted">
+                        Reference
+                      </th>
+                      <th className="px-4 py-3 text-right font-medium text-text-muted">
+                        Amount
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-subtle">
+                    {currentInstallments
+                      .flatMap((inst) =>
+                        (inst.payments || []).map((p) => ({
+                          ...p,
+                          installmentNumber: inst.installmentNumber,
+                        })),
+                      )
+                      .sort(
+                        (a, b) =>
+                          new Date(b.receivedAt).getTime() -
+                          new Date(a.receivedAt).getTime(),
+                      )
+                      .slice(0, 10)
+                      .map((payment) => (
+                        <tr key={payment.id} className="hover:bg-surface-hover">
+                          <td className="px-4 py-3">
+                            {formatDate(payment.receivedAt)}
+                          </td>
+                          <td className="px-4 py-3">
+                            #{payment.installmentNumber}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant="default" className="capitalize">
+                              {payment.paymentMode}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-text-muted">
+                            {payment.transactionRef || "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-success">
+                            ₹{payment.amount.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
       {/* Dialogs */}
       <CreateFeeStructureDialog
@@ -408,10 +453,10 @@ function SummaryCard({
     variant === "success"
       ? "text-green-600"
       : variant === "warning"
-      ? "text-amber-600"
-      : variant === "error"
-      ? "text-red-600"
-      : "text-text-primary";
+        ? "text-amber-600"
+        : variant === "error"
+          ? "text-red-600"
+          : "text-text-primary";
 
   return (
     <Card className={highlight ? "border-primary-500 bg-primary-50" : ""}>
@@ -443,7 +488,10 @@ function InstallmentStatusIcon({ status }: { status: InstallmentStatus }) {
 }
 
 function InstallmentStatusBadge({ status }: { status: InstallmentStatus }) {
-  const variants: Record<InstallmentStatus, "success" | "warning" | "error" | "default"> = {
+  const variants: Record<
+    InstallmentStatus,
+    "success" | "warning" | "error" | "default"
+  > = {
     paid: "success",
     partial: "warning",
     due: "warning",
