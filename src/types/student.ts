@@ -4,6 +4,7 @@
  */
 
 import { StudentHealth, UpdateStudentHealthInput } from "./health";
+import { CustomDiscountInput } from "./fee";
 
 export type StudentStatus = "active" | "inactive";
 export type StudentGender = "male" | "female" | "other";
@@ -68,6 +69,7 @@ export interface CreateStudentInput {
   scholarshipIds?: string[];
   sessionId?: string;
   health?: StudentHealth;
+  customDiscount?: CustomDiscountInput;
 }
 
 /**

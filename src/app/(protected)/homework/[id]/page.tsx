@@ -8,7 +8,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   ArrowLeft,
-  BookOpen,
   Calendar,
   Award,
   FileText,
@@ -39,8 +38,6 @@ import {
   Label,
   Textarea,
   Avatar,
-  AvatarFallback,
-  AvatarImage,
   Tabs,
   TabsContent,
   TabsList,
@@ -143,7 +140,7 @@ function getSubmissionStatusConfig(status: SubmissionStatus) {
  * Grade submission schema
  */
 const gradeSchema = z.object({
-  marks: z.coerce.number().min(0, "Marks must be positive"),
+  marks: z.number().min(0, "Marks must be positive"),
   feedback: z.string().max(1000).optional(),
 });
 
@@ -205,15 +202,16 @@ function GradeDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Grade Submission</DialogTitle>
-          <DialogDescription>
-            {submission.studentName}
-          </DialogDescription>
+          <DialogDescription>{submission.studentName}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="marks">
-              Marks {totalMarks && <span className="text-text-muted">/ {totalMarks}</span>}
+              Marks{" "}
+              {totalMarks && (
+                <span className="text-text-muted">/ {totalMarks}</span>
+              )}
             </Label>
             <Input
               id="marks"
@@ -222,7 +220,9 @@ function GradeDialog({
               {...form.register("marks")}
             />
             {form.formState.errors.marks && (
-              <p className="text-xs text-error">{form.formState.errors.marks.message}</p>
+              <p className="text-xs text-error">
+                {form.formState.errors.marks.message}
+              </p>
             )}
           </div>
 
@@ -239,7 +239,7 @@ function GradeDialog({
           <DialogFooter>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => onOpenChange(false)}
             >
               Cancel
@@ -272,7 +272,16 @@ function SubmissionCard({
   return (
     <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
       <div className="flex items-center gap-3">
-        <Avatar>
+        <Avatar
+          src={submission.studentPhoto}
+          fallback={submission.studentName
+            .split(" ")
+            .map((n) => n[0])
+            .join("")}
+          alt={submission.studentName}
+          size="xl"
+        />
+        {/* <Avatar>
           <AvatarImage src={submission.studentPhoto || undefined} />
           <AvatarFallback>
             {submission.studentName
@@ -280,9 +289,11 @@ function SubmissionCard({
               .map((n) => n[0])
               .join("")}
           </AvatarFallback>
-        </Avatar>
+        </Avatar> */}
         <div>
-          <p className="font-medium text-text-primary">{submission.studentName}</p>
+          <p className="font-medium text-text-primary">
+            {submission.studentName}
+          </p>
           <div className="flex items-center gap-2 text-xs text-text-muted">
             <Badge className={cn("text-xs", statusConfig.color)}>
               <StatusIcon className="h-3 w-3 mr-1" />
@@ -310,7 +321,7 @@ function SubmissionCard({
           </div>
         )}
         {["submitted", "late", "graded"].includes(submission.status) && (
-          <Button size="sm" variant="outline" onClick={onGrade}>
+          <Button size="sm" variant="secondary" onClick={onGrade}>
             {submission.status === "graded" ? "Edit Grade" : "Grade"}
           </Button>
         )}
@@ -327,10 +338,12 @@ export default function HomeworkDetailPage() {
   const router = useRouter();
   const homeworkId = params.id as string;
 
-  const [gradeSubmission, setGradeSubmission] = useState<HomeworkSubmission | null>(null);
+  const [gradeSubmission, setGradeSubmission] =
+    useState<HomeworkSubmission | null>(null);
 
   // Fetch homework detail
-  const { data: homework, isLoading: homeworkLoading } = useHomeworkDetail(homeworkId);
+  const { data: homework, isLoading: homeworkLoading } =
+    useHomeworkDetail(homeworkId);
 
   // Fetch submissions
   const { data: submissionsData, isLoading: submissionsLoading } =
@@ -406,11 +419,9 @@ export default function HomeworkDetailPage() {
               {homework.title}
             </h1>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant="outline">{homework.batchName}</Badge>
+              <Badge>{homework.batchName}</Badge>
               {homework.subjectName && (
-                <Badge variant="outline" className="bg-purple-50">
-                  {homework.subjectName}
-                </Badge>
+                <Badge className="bg-purple-50">{homework.subjectName}</Badge>
               )}
               <Badge className={cn("text-xs", statusConfig.color)}>
                 <StatusIcon className="h-3 w-3 mr-1" />
@@ -423,14 +434,17 @@ export default function HomeworkDetailPage() {
         {/* Actions */}
         <div className="flex items-center gap-2">
           {homework.status === "draft" && (
-            <Button onClick={handlePublish} disabled={publishMutation.isPending}>
+            <Button
+              onClick={handlePublish}
+              disabled={publishMutation.isPending}
+            >
               <Send className="h-4 w-4 mr-2" />
               Publish
             </Button>
           )}
           {homework.status === "published" && (
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={handleClose}
               disabled={closeMutation.isPending}
             >
@@ -480,7 +494,9 @@ export default function HomeworkDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-text-muted mb-1">Created At</p>
-                  <p className="font-medium">{formatDate(homework.createdAt)}</p>
+                  <p className="font-medium">
+                    {formatDate(homework.createdAt)}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -514,7 +530,9 @@ export default function HomeworkDetailPage() {
                     className="flex items-center gap-2 p-2 bg-bg-app rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <FileText className="h-4 w-4 text-text-muted" />
-                    <span className="text-sm text-primary-600">{attachment.name}</span>
+                    <span className="text-sm text-primary-600">
+                      {attachment.name}
+                    </span>
                   </a>
                 ))}
               </CardContent>

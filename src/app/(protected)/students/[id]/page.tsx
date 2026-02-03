@@ -171,7 +171,7 @@ export default function StudentDetailPage({
         </div>
 
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowIdCard(true)}>
+          <Button variant="secondary" onClick={() => setShowIdCard(true)}>
             <IdCard className="mr-2 h-4 w-4" aria-hidden="true" />
             ID Card
           </Button>
@@ -410,7 +410,7 @@ export default function StudentDetailPage({
                       label="Failed"
                       value={
                         reportCard.exams.filter(
-                          (e) => e.marksObtained !== null && !e.isPassed
+                          (e) => e.marksObtained !== null && !e.isPassed,
                         ).length
                       }
                       variant="error"
@@ -485,8 +485,8 @@ export default function StudentDetailPage({
                                   exam.marksObtained === null
                                     ? "default"
                                     : exam.isPassed
-                                    ? "success"
-                                    : "error"
+                                      ? "success"
+                                      : "error"
                                 }
                               >
                                 {exam.grade}
@@ -677,14 +677,14 @@ function formatExamType(type: ExamType): string {
  * Calculate average percentage from exam results
  */
 function calculateAverage(
-  exams: { marksObtained: number | null; totalMarks: number }[]
+  exams: { marksObtained: number | null; totalMarks: number }[],
 ): number {
   const scoredExams = exams.filter((e) => e.marksObtained !== null);
   if (scoredExams.length === 0) return 0;
 
   const totalObtained = scoredExams.reduce(
     (sum, e) => sum + (e.marksObtained || 0),
-    0
+    0,
   );
   const totalMax = scoredExams.reduce((sum, e) => sum + e.totalMarks, 0);
 
@@ -711,8 +711,8 @@ function StatCard({
     variant === "success"
       ? "text-green-600"
       : variant === "error"
-      ? "text-red-600"
-      : "text-text-primary";
+        ? "text-red-600"
+        : "text-text-primary";
 
   return (
     <div className="rounded-lg border border-border-subtle p-3 bg-surface-elevated">

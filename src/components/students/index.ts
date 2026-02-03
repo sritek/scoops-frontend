@@ -9,3 +9,5 @@ export { CreateFeeStructureDialog } from "./CreateFeeStructureDialog";
 export { AssignScholarshipDialog } from "./AssignScholarshipDialog";
 export { GenerateInstallmentsDialog } from "./GenerateInstallmentsDialog";
 export { IdCardDialog } from "./IdCardDialog";
+export { CustomDiscountSection } from "./CustomDiscountSection";
+export type { CustomDiscountState } from "./CustomDiscountSection";

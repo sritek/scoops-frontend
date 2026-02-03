@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -60,6 +60,7 @@ interface LineItemInput {
  */
 export default function BatchFeesPage() {
   const params = useParams();
+  const router = useRouter();
   const batchId = params.id as string;
   const { can } = usePermissions();
 
@@ -68,11 +69,10 @@ export default function BatchFeesPage() {
 
   // Fetch data
   const { data: batchData, isLoading: batchLoading } = useBatch(batchId);
-  const { data: currentSession, isLoading: sessionLoading } = useCurrentSession();
-  const { data: feeStructure, isLoading: structureLoading } = useBatchFeeStructureByBatch(
-    batchId,
-    currentSession?.id || null
-  );
+  const { data: currentSession, isLoading: sessionLoading } =
+    useCurrentSession();
+  const { data: feeStructure, isLoading: structureLoading } =
+    useBatchFeeStructureByBatch(batchId, currentSession?.id || null);
   const { data: feeComponents } = useAllFeeComponents();
 
   const batch = batchData?.data;
@@ -100,10 +100,8 @@ export default function BatchFeesPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={`/batches/${batchId}`}>
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
+          <Button variant="ghost" size="sm" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-xl font-semibold text-text-primary">
@@ -119,7 +117,10 @@ export default function BatchFeesPage() {
           <div className="flex gap-2">
             {feeStructure ? (
               <>
-                <Button variant="secondary" onClick={() => setShowCreateDialog(true)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowCreateDialog(true)}
+                >
                   <Edit className="mr-2 h-4 w-4" />
                   Edit Structure
                 </Button>
@@ -307,13 +308,13 @@ function CreateEditDialog({
   feeComponents: FeeComponent[];
 }) {
   const [name, setName] = useState(
-    existingStructure?.name || `${batchName} - ${sessionName} Fee Structure`
+    existingStructure?.name || `${batchName} - ${sessionName} Fee Structure`,
   );
   const [lineItems, setLineItems] = useState<LineItemInput[]>(
     existingStructure?.lineItems.map((li) => ({
       feeComponentId: li.feeComponentId,
       amount: String(li.amount),
-    })) || []
+    })) || [],
   );
 
   const { mutate: createStructure, isPending } = useCreateBatchFeeStructure();
@@ -353,7 +354,7 @@ function CreateEditDialog({
     }
 
     const invalidItems = lineItems.filter(
-      (li) => !li.amount || parseFloat(li.amount) <= 0
+      (li) => !li.amount || parseFloat(li.amount) <= 0,
     );
     if (invalidItems.length > 0) {
       toast.error("Please enter valid amounts for all components");
@@ -375,14 +376,14 @@ function CreateEditDialog({
           toast.success(
             existingStructure
               ? "Fee structure updated successfully"
-              : "Fee structure created successfully"
+              : "Fee structure created successfully",
           );
           onOpenChange(false);
         },
         onError: () => {
           toast.error("Failed to save fee structure");
         },
-      }
+      },
     );
   };
 
@@ -419,7 +420,8 @@ function CreateEditDialog({
             <Label>Fee Components</Label>
             {lineItems.length === 0 ? (
               <p className="text-sm text-text-muted py-2">
-                No components added yet. Add components to build the fee structure.
+                No components added yet. Add components to build the fee
+                structure.
               </p>
             ) : (
               <div className="space-y-2">
@@ -435,7 +437,9 @@ function CreateEditDialog({
                       type="number"
                       placeholder="Amount"
                       value={item.amount}
-                      onChange={(e) => handleAmountChange(index, e.target.value)}
+                      onChange={(e) =>
+                        handleAmountChange(index, e.target.value)
+                      }
                       className="w-32"
                     />
                     <Button
@@ -487,8 +491,8 @@ function CreateEditDialog({
             {isPending
               ? "Saving..."
               : existingStructure
-              ? "Update Structure"
-              : "Create Structure"}
+                ? "Update Structure"
+                : "Create Structure"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -524,14 +528,14 @@ function ApplyToStudentsDialog({
           toast.success(
             `Applied to ${result.applied} students${
               result.skipped > 0 ? `, ${result.skipped} skipped` : ""
-            }`
+            }`,
           );
           onOpenChange(false);
         },
         onError: () => {
           toast.error("Failed to apply fee structure");
         },
-      }
+      },
     );
   };
 
@@ -578,7 +582,8 @@ function ApplyToStudentsDialog({
                 <p className="font-medium">Warning</p>
                 <p className="mt-1">
                   This will replace any custom fee structures students may have,
-                  including scholarship adjustments. This action cannot be undone.
+                  including scholarship adjustments. This action cannot be
+                  undone.
                 </p>
               </div>
             </div>

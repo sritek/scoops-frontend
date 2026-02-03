@@ -7,6 +7,81 @@
 export type PaymentMode = "cash" | "upi" | "bank";
 
 // =====================
+// Custom Discount Types
+// =====================
+
+/**
+ * Custom discount type - percentage or fixed amount
+ */
+export type CustomDiscountType = "percentage" | "fixed_amount";
+
+/**
+ * Custom discount input for student creation
+ */
+export interface CustomDiscountInput {
+  type: CustomDiscountType;
+  value: number;
+  remarks?: string;
+}
+
+/**
+ * Custom discount display data (from StudentFeeStructure)
+ */
+export interface CustomDiscountDisplay {
+  type: CustomDiscountType;
+  value: number;
+  amount: number;
+  remarks: string | null;
+}
+
+/**
+ * Get human-readable custom discount type label
+ */
+export function getCustomDiscountTypeLabel(type: CustomDiscountType): string {
+  switch (type) {
+    case "percentage":
+      return "Percentage Discount";
+    case "fixed_amount":
+      return "Fixed Amount";
+    default:
+      return type;
+  }
+}
+
+/**
+ * Format custom discount value for display
+ * @param discount - The custom discount data
+ * @returns Formatted string like "10%" or "₹5,000"
+ */
+export function formatCustomDiscountValue(discount: {
+  type: CustomDiscountType;
+  value: number;
+}): string {
+  switch (discount.type) {
+    case "percentage":
+      return `${discount.value}%`;
+    case "fixed_amount":
+      return `₹${discount.value.toLocaleString("en-IN")}`;
+    default:
+      return String(discount.value);
+  }
+}
+
+/**
+ * Format custom discount for full display (type + value + calculated amount)
+ * @param discount - The custom discount data with calculated amount
+ * @returns Formatted string like "10% (₹5,000)" or "₹5,000"
+ */
+export function formatCustomDiscountDisplay(
+  discount: CustomDiscountDisplay,
+): string {
+  if (discount.type === "percentage") {
+    return `${discount.value}% (₹${discount.amount.toLocaleString("en-IN")})`;
+  }
+  return `₹${discount.amount.toLocaleString("en-IN")}`;
+}
+
+// =====================
 // Fee Component Types
 // =====================
 
@@ -105,7 +180,10 @@ export interface BatchFeeStructure {
     id: string;
     name: string;
   };
-  lineItems: FeeLineItem[];
+  lineItems?: FeeLineItem[];
+  _count?: {
+    lineItems: number;
+  };
 }
 
 /**
@@ -136,6 +214,11 @@ export interface StudentFeeStructure {
   batchFeeStructureId: string | null;
   grossAmount: number;
   scholarshipAmount: number;
+  // Custom discount fields
+  customDiscountType: CustomDiscountType | null;
+  customDiscountValue: number | null;
+  customDiscountAmount: number | null;
+  customDiscountRemarks: string | null;
   netAmount: number;
   remarks: string | null;
   createdAt: string;
@@ -151,6 +234,29 @@ export interface StudentFeeStructure {
   } | null;
   lineItems: StudentFeeLineItem[];
   installments?: FeeInstallment[];
+}
+
+/**
+ * Helper to extract custom discount display data from StudentFeeStructure
+ * Returns null if no custom discount is applied
+ */
+export function getCustomDiscountFromFeeStructure(
+  feeStructure: StudentFeeStructure,
+): CustomDiscountDisplay | null {
+  if (
+    !feeStructure.customDiscountType ||
+    feeStructure.customDiscountValue === null ||
+    feeStructure.customDiscountAmount === null
+  ) {
+    return null;
+  }
+
+  return {
+    type: feeStructure.customDiscountType,
+    value: feeStructure.customDiscountValue,
+    amount: feeStructure.customDiscountAmount,
+    remarks: feeStructure.customDiscountRemarks,
+  };
 }
 
 /**
@@ -186,6 +292,7 @@ export interface StudentFeeSummary {
     };
     grossAmount: number;
     scholarshipAmount: number;
+    customDiscount: CustomDiscountDisplay | null;
     netAmount: number;
     totalPaid: number;
     pendingAmount: number;

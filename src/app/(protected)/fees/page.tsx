@@ -1,7 +1,12 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { type ColumnDef } from "@tanstack/react-table";
+import { toast } from "sonner";
 import {
   Plus,
   AlertCircle,
@@ -21,6 +26,9 @@ import {
   Award,
   Calendar,
   Trash2,
+  MoreHorizontal,
+  Pencil,
+  Users,
 } from "lucide-react";
 import { useReceipts, downloadReceiptPDF } from "@/lib/api/fees";
 import {
@@ -40,7 +48,15 @@ import {
   usePendingInstallments,
   useRecordInstallmentPayment,
   useBatches,
+  useBatchFeeStructures,
+  useBatchFeeStructureByBatch,
+  useCreateBatchFeeStructure,
+  useUpdateBatchFeeStructure,
+  useDeleteBatchFeeStructure,
+  useAllFeeComponents,
+  useApplyBatchFeeStructure,
 } from "@/lib/api";
+import { useSessions } from "@/lib/api/sessions";
 import { usePermissions, useDebounce } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import {
@@ -65,6 +81,11 @@ import {
   SelectItem,
   Skeleton,
   CardGridSkeleton,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui";
 import type {
   PaymentMode,
@@ -73,10 +94,12 @@ import type {
   EMIPlanTemplate,
   PendingInstallment,
   InstallmentStatus,
+  BatchFeeStructure,
 } from "@/types/fee";
 import type { Scholarship } from "@/types/scholarship";
 import type { PaymentLink } from "@/types/payment";
 import { PAGINATION_DEFAULTS } from "@/types";
+import Link from "next/link";
 
 type TabType =
   | "pending"
@@ -84,7 +107,18 @@ type TabType =
   | "links"
   | "components"
   | "scholarships"
-  | "emi-templates";
+  | "emi-templates"
+  | "batch-structures";
+
+const VALID_TABS: TabType[] = [
+  "pending",
+  "receipts",
+  "links",
+  "components",
+  "scholarships",
+  "emi-templates",
+  "batch-structures",
+];
 
 /**
  * Fees Management Page
@@ -94,13 +128,34 @@ type TabType =
  * 2. Pending Fees - List pending/partial fees and record payments
  */
 export default function FeesPage() {
-  const [activeTab, setActiveTab] = useState<TabType>("pending");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Read initial tab from URL, default to "pending"
+  const tabFromUrl = searchParams.get("tab") as TabType | null;
+  const initialTab =
+    tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : "pending";
+
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [currentPage, setCurrentPage] = useState(1);
   const { can } = usePermissions();
   const { user } = useAuth();
 
   const canManageFees = can("FEE_UPDATE");
   const isTeacher = user?.role?.toLowerCase() === "teacher";
+
+  // Update URL when tab changes
+  const handleTabChange = useCallback(
+    (tab: TabType) => {
+      setActiveTab(tab);
+      setCurrentPage(1);
+      // Update URL without adding to history
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", tab);
+      router.replace(`/fees?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
 
   return (
     <div className="space-y-6">
@@ -130,10 +185,7 @@ export default function FeesPage() {
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border-subtle">
         <button
-          onClick={() => {
-            setActiveTab("pending");
-            setCurrentPage(1);
-          }}
+          onClick={() => handleTabChange("pending")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === "pending"
               ? "border-primary-600 text-primary-600"
@@ -144,10 +196,7 @@ export default function FeesPage() {
           Pending Fees
         </button>
         <button
-          onClick={() => {
-            setActiveTab("receipts");
-            setCurrentPage(1);
-          }}
+          onClick={() => handleTabChange("receipts")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === "receipts"
               ? "border-primary-600 text-primary-600"
@@ -159,10 +208,7 @@ export default function FeesPage() {
         </button>
         {canManageFees && (
           <button
-            onClick={() => {
-              setActiveTab("links");
-              setCurrentPage(1);
-            }}
+            onClick={() => handleTabChange("links")}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === "links"
                 ? "border-primary-600 text-primary-600"
@@ -179,10 +225,7 @@ export default function FeesPage() {
         {canManageFees && (
           <>
             <button
-              onClick={() => {
-                setActiveTab("components");
-                setCurrentPage(1);
-              }}
+              onClick={() => handleTabChange("components")}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "components"
                   ? "border-primary-600 text-primary-600"
@@ -196,10 +239,7 @@ export default function FeesPage() {
               Components
             </button>
             <button
-              onClick={() => {
-                setActiveTab("scholarships");
-                setCurrentPage(1);
-              }}
+              onClick={() => handleTabChange("scholarships")}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "scholarships"
                   ? "border-primary-600 text-primary-600"
@@ -210,10 +250,7 @@ export default function FeesPage() {
               Scholarships
             </button>
             <button
-              onClick={() => {
-                setActiveTab("emi-templates");
-                setCurrentPage(1);
-              }}
+              onClick={() => handleTabChange("emi-templates")}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "emi-templates"
                   ? "border-primary-600 text-primary-600"
@@ -225,6 +262,20 @@ export default function FeesPage() {
                 aria-hidden="true"
               />
               EMI Templates
+            </button>
+            <button
+              onClick={() => handleTabChange("batch-structures")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "batch-structures"
+                  ? "border-primary-600 text-primary-600"
+                  : "border-transparent text-text-muted hover:text-text-primary"
+              }`}
+            >
+              <Layers
+                className="inline-block mr-2 h-4 w-4"
+                aria-hidden="true"
+              />
+              Batch Fee Structures
             </button>
           </>
         )}
@@ -253,6 +304,7 @@ export default function FeesPage() {
       {activeTab === "components" && <FeeComponentsTab />}
       {activeTab === "scholarships" && <ScholarshipsTab />}
       {activeTab === "emi-templates" && <EMITemplatesTab />}
+      {activeTab === "batch-structures" && <BatchFeeStructuresTab />}
     </div>
   );
 }
@@ -1723,6 +1775,829 @@ function EMITemplatesTab() {
 }
 
 /**
+ * Batch Fee Structures Tab
+ * Shows all batch fee structures with filtering and management actions
+ */
+function BatchFeeStructuresTab() {
+  // Next.js router for navigation
+  const router = useRouter();
+
+  // Fetch sessions for filter dropdown
+  const { data: sessionsData } = useSessions({ limit: 50 });
+  const sessions = sessionsData?.data ?? [];
+
+  // Find current session
+  const currentSession = useMemo(
+    () => sessions.find((s) => s.isCurrent),
+    [sessions],
+  );
+
+  // State for session filter - default to current session when available
+  const [sessionFilter, setSessionFilter] = useState<string>("");
+
+  // Set default session filter to current session when sessions load (only once)
+  const hasSetDefaultSession = useRef(false);
+  useEffect(() => {
+    if (currentSession && !hasSetDefaultSession.current) {
+      hasSetDefaultSession.current = true;
+      setSessionFilter(currentSession.id);
+    }
+  }, [currentSession]);
+
+  // State for dialogs
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showApplyDialog, setShowApplyDialog] = useState(false);
+
+  // State for selected/editing structure
+  const [selectedStructure, setSelectedStructure] =
+    useState<BatchFeeStructure | null>(null);
+  const [editingStructure, setEditingStructure] =
+    useState<BatchFeeStructure | null>(null);
+
+  // Delete mutation
+  const { mutate: deleteStructure, isPending: isDeleting } =
+    useDeleteBatchFeeStructure();
+
+  // Fetch batch fee structures with session filter
+  const { data: structures, isLoading } = useBatchFeeStructures(
+    sessionFilter || undefined,
+  );
+
+  // Sort structures by session (descending) and batch name (ascending)
+  const sortedStructures = useMemo(() => {
+    if (!structures) return [];
+    return [...structures].sort((a, b) => {
+      // First sort by session name descending
+      const sessionCompare = b.session.name.localeCompare(a.session.name);
+      if (sessionCompare !== 0) return sessionCompare;
+      // Then by batch name ascending
+      return a.batch.name.localeCompare(b.batch.name);
+    });
+  }, [structures]);
+
+  // Handle delete
+  const handleDelete = useCallback(
+    (structure: BatchFeeStructure) => {
+      if (
+        window.confirm(
+          `Are you sure you want to delete the fee structure for "${structure.batch.name}"? This action cannot be undone.`,
+        )
+      ) {
+        deleteStructure(structure.id, {
+          onSuccess: () => {
+            toast.success("Fee structure deleted successfully");
+          },
+          onError: (err) => {
+            toast.error(
+              err instanceof Error
+                ? err.message
+                : "Failed to delete fee structure",
+            );
+          },
+        });
+      }
+    },
+    [deleteStructure],
+  );
+
+  // Check if a structure is from a previous (non-current) session
+  const isPreviousSession = useCallback(
+    (structure: BatchFeeStructure) => {
+      return currentSession && structure.sessionId !== currentSession.id;
+    },
+    [currentSession],
+  );
+
+  // Table columns definition
+  const columns: ColumnDef<BatchFeeStructure>[] = useMemo(
+    () => [
+      {
+        accessorKey: "batch.name",
+        header: "Batch",
+        cell: ({ row }) => (
+          <Link
+            href={`/batches/${row.original.batchId}`}
+            className="text-primary-600 hover:underline"
+          >
+            {row.original.batch.name}
+          </Link>
+        ),
+      },
+      {
+        accessorKey: "session.name",
+        header: "Session",
+        cell: ({ row }) => (
+          <span className="flex items-center gap-2">
+            {row.original.session.name}
+            {isPreviousSession(row.original) && (
+              <Badge variant="default" className="text-xs">
+                Past
+              </Badge>
+            )}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "totalAmount",
+        header: "Total Amount",
+        cell: ({ row }) => (
+          <span className="font-medium">
+            {formatCurrency(row.original.totalAmount)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "_count.lineItems",
+        header: "Components",
+        cell: ({ row }) => {
+          const count = row.original._count?.lineItems ?? 0;
+          return (
+            <span className="text-text-muted">
+              {count} {count === 1 ? "component" : "components"}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "isActive",
+        header: "Status",
+        cell: ({ row }) =>
+          row.original.isActive ? (
+            <Badge variant="success">Active</Badge>
+          ) : (
+            <Badge variant="default">Inactive</Badge>
+          ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const isReadOnly = isPreviousSession(row.original);
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() =>
+                    router.push(`/batches/${row.original.batchId}/fees`)
+                  }
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  View
+                </DropdownMenuItem>
+                {!isReadOnly && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => setEditingStructure(row.original)}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedStructure(row.original);
+                        setShowApplyDialog(true);
+                      }}
+                    >
+                      <Users className="mr-2 h-4 w-4" />
+                      Apply to Students
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => handleDelete(row.original)}
+                      className="text-red-600 focus:text-red-600"
+                      disabled={isDeleting}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    [router, isPreviousSession, handleDelete, isDeleting],
+  );
+
+  // Handler to close create/edit dialog
+  const handleCloseCreateEditDialog = useCallback(() => {
+    setShowCreateDialog(false);
+    setEditingStructure(null);
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Select value={sessionFilter} onValueChange={setSessionFilter}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Select session" />
+          </SelectTrigger>
+          <SelectContent>
+            {sessions.map((session) => (
+              <SelectItem key={session.id} value={session.id}>
+                {session.name}
+                {session.isCurrent && " (Current)"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button onClick={() => setShowCreateDialog(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Structure
+        </Button>
+      </div>
+
+      {/* Empty state when no structures exist */}
+      {!isLoading && sortedStructures.length === 0 && (
+        <Card>
+          <EmptyState
+            icon={Layers}
+            title="No batch fee structures"
+            description="Create fee structures for batches to define default fees"
+            action={
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Structure
+              </Button>
+            }
+          />
+        </Card>
+      )}
+
+      {/* Structures table */}
+      {(isLoading || sortedStructures.length > 0) && (
+        <Card>
+          <DataTable
+            columns={columns}
+            data={sortedStructures}
+            paginationMode="client"
+            pageSize={20}
+            isLoading={isLoading}
+            emptyMessage="No batch fee structures found."
+          />
+        </Card>
+      )}
+
+      {/* Create/Edit Dialog */}
+      <CreateEditBatchFeeStructureDialog
+        open={showCreateDialog || !!editingStructure}
+        onOpenChange={(open) => {
+          if (!open) handleCloseCreateEditDialog();
+        }}
+        editingStructure={editingStructure}
+        sessions={sessions}
+        onSuccess={handleCloseCreateEditDialog}
+      />
+
+      {/* Apply to Students Dialog */}
+      <ApplyToStudentsDialog
+        open={showApplyDialog}
+        onOpenChange={setShowApplyDialog}
+        structure={selectedStructure}
+        onSuccess={() => {
+          setShowApplyDialog(false);
+          setSelectedStructure(null);
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Zod schema for batch fee structure form
+ */
+const batchFeeStructureFormSchema = z.object({
+  name: z.string().max(255, "Name is too long").optional(),
+  batchId: z.string().uuid("Please select a batch"),
+  sessionId: z.string().uuid("Please select a session"),
+  lineItems: z
+    .array(
+      z.object({
+        id: z.string(), // Temporary ID for React key
+        feeComponentId: z.string().uuid("Please select a fee component"),
+        amount: z.number().positive("Amount must be greater than 0"),
+      }),
+    )
+    .min(1, "Please add at least one fee component"),
+});
+
+type BatchFeeStructureFormData = z.infer<typeof batchFeeStructureFormSchema>;
+
+/**
+ * Create/Edit Batch Fee Structure Dialog
+ * Handles both creating new and editing existing batch fee structures
+ * Uses react-hook-form with zod validation
+ */
+function CreateEditBatchFeeStructureDialog({
+  open,
+  onOpenChange,
+  editingStructure,
+  sessions,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  editingStructure: BatchFeeStructure | null;
+  sessions: Array<{ id: string; name: string; isCurrent?: boolean }>;
+  onSuccess: () => void;
+}) {
+  // Fetch batches for dropdown
+  const { data: batchesData } = useBatches({ limit: 100 });
+  const batches = batchesData?.data ?? [];
+
+  // Fetch all fee components for dropdown
+  const { data: feeComponents } = useAllFeeComponents();
+
+  // Fetch full structure with line items when editing
+  // The list API only returns _count.lineItems, not the actual lineItems array
+  const { data: fullStructure, isLoading: isLoadingStructure } =
+    useBatchFeeStructureByBatch(
+      editingStructure?.batchId ?? null,
+      editingStructure?.sessionId ?? null,
+    );
+
+  // Create mutation (POST)
+  const { mutate: createStructure, isPending: isCreating } =
+    useCreateBatchFeeStructure();
+
+  // Update mutation (PATCH)
+  const { mutate: updateStructure, isPending: isUpdating } =
+    useUpdateBatchFeeStructure();
+
+  // Find current session
+  const currentSession = sessions.find((s) => s.isCurrent);
+
+  const isEditing = !!editingStructure;
+  const isLoadingEditData = isEditing && isLoadingStructure;
+  const isSaving = isCreating || isUpdating;
+
+  // React Hook Form setup
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm<BatchFeeStructureFormData>({
+    resolver: zodResolver(batchFeeStructureFormSchema),
+    defaultValues: {
+      name: "",
+      batchId: "",
+      sessionId: currentSession?.id ?? "",
+      lineItems: [],
+    },
+  });
+
+  // Watch lineItems for total calculation and available components
+  const lineItems = watch("lineItems");
+
+  // Reset form when dialog opens/closes or editing structure changes
+  useEffect(() => {
+    if (open) {
+      if (editingStructure) {
+        // When editing, immediately set batch/session from editingStructure
+        // This ensures they show up even before fullStructure loads
+        if (fullStructure) {
+          // Full structure loaded - populate everything including lineItems
+          reset({
+            name: fullStructure.name,
+            batchId: fullStructure.batchId,
+            sessionId: fullStructure.sessionId,
+            lineItems:
+              fullStructure.lineItems?.map((item) => ({
+                id: item.id,
+                feeComponentId: item.feeComponentId,
+                amount: item.amount,
+              })) ?? [],
+          });
+        } else {
+          // Full structure not loaded yet - populate batch/session from editingStructure
+          reset({
+            name: editingStructure.name,
+            batchId: editingStructure.batchId,
+            sessionId: editingStructure.sessionId,
+            lineItems: [], // Will be populated when fullStructure loads
+          });
+        }
+      } else {
+        // Reset form for new structure
+        reset({
+          name: "",
+          batchId: "",
+          sessionId: currentSession?.id ?? "",
+          lineItems: [],
+        });
+      }
+    }
+  }, [open, editingStructure, fullStructure, currentSession?.id, reset]);
+
+  // Calculate total amount from line items
+  const totalAmount = useMemo(() => {
+    return lineItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+  }, [lineItems]);
+
+  // Add a new line item
+  const handleAddLineItem = useCallback(() => {
+    const currentItems = lineItems || [];
+    setValue("lineItems", [
+      ...currentItems,
+      {
+        id: `temp-${Date.now()}`,
+        feeComponentId: "",
+        amount: 0,
+      },
+    ]);
+  }, [lineItems, setValue]);
+
+  // Remove a line item
+  const handleRemoveLineItem = useCallback(
+    (id: string) => {
+      setValue(
+        "lineItems",
+        lineItems.filter((item) => item.id !== id),
+      );
+    },
+    [lineItems, setValue],
+  );
+
+  // Update a line item
+  const handleUpdateLineItem = useCallback(
+    (
+      id: string,
+      field: "feeComponentId" | "amount",
+      value: string | number,
+    ) => {
+      setValue(
+        "lineItems",
+        lineItems.map((item) =>
+          item.id === id ? { ...item, [field]: value } : item,
+        ),
+      );
+    },
+    [lineItems, setValue],
+  );
+
+  // Get available fee components (not already selected)
+  const getAvailableComponents = useCallback(
+    (currentItemId: string) => {
+      const selectedIds = lineItems
+        .filter((item) => item.id !== currentItemId)
+        .map((item) => item.feeComponentId);
+      return (feeComponents ?? []).filter(
+        (comp) => !selectedIds.includes(comp.id),
+      );
+    },
+    [lineItems, feeComponents],
+  );
+
+  // Handle form submission
+  const onSubmit = useCallback(
+    (data: BatchFeeStructureFormData) => {
+      // Generate name if not provided
+      const structureName =
+        data.name?.trim() ||
+        `${batches.find((b) => b.id === data.batchId)?.name ?? "Batch"} Fee Structure`;
+
+      const lineItemsPayload = data.lineItems.map((item) => ({
+        feeComponentId: item.feeComponentId,
+        amount: item.amount,
+      }));
+
+      if (isEditing && fullStructure) {
+        // Use PATCH for updates
+        updateStructure(
+          {
+            id: fullStructure.id,
+            data: {
+              name: structureName,
+              lineItems: lineItemsPayload,
+            },
+          },
+          {
+            onSuccess: () => {
+              toast.success("Fee structure updated successfully");
+              onSuccess();
+            },
+            onError: (err) => {
+              toast.error(
+                err instanceof Error
+                  ? err.message
+                  : "Failed to update fee structure",
+              );
+            },
+          },
+        );
+      } else {
+        // Use POST for creates
+        createStructure(
+          {
+            batchId: data.batchId,
+            sessionId: data.sessionId,
+            name: structureName,
+            lineItems: lineItemsPayload,
+          },
+          {
+            onSuccess: () => {
+              toast.success("Fee structure created successfully");
+              onSuccess();
+            },
+            onError: (err) => {
+              toast.error(
+                err instanceof Error
+                  ? err.message
+                  : "Failed to create fee structure",
+              );
+            },
+          },
+        );
+      }
+    },
+    [
+      batches,
+      isEditing,
+      fullStructure,
+      createStructure,
+      updateStructure,
+      onSuccess,
+    ],
+  );
+
+  // Get first error message for display
+  const errorMessage = useMemo(() => {
+    if (errors.batchId?.message) return errors.batchId.message;
+    if (errors.sessionId?.message) return errors.sessionId.message;
+    if (errors.lineItems?.message) return errors.lineItems.message;
+    if (errors.lineItems?.root?.message) return errors.lineItems.root.message;
+    // Check for individual line item errors
+    const lineItemErrors = errors.lineItems as
+      | Array<{
+          feeComponentId?: { message?: string };
+          amount?: { message?: string };
+        }>
+      | undefined;
+    if (lineItemErrors) {
+      for (const itemError of lineItemErrors) {
+        if (itemError?.feeComponentId?.message)
+          return itemError.feeComponentId.message;
+        if (itemError?.amount?.message) return itemError.amount.message;
+      }
+    }
+    return null;
+  }, [errors]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {isEditing ? "Edit Fee Structure" : "Create Fee Structure"}
+          </DialogTitle>
+          <DialogDescription>
+            {isEditing
+              ? "Modify the fee structure for this batch"
+              : "Create a new fee structure for a batch"}
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoadingEditData ? (
+          <div className="space-y-4 py-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
+            {/* Error message */}
+            {errorMessage && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                <AlertCircle className="h-4 w-4" />
+                {errorMessage}
+              </div>
+            )}
+
+            {/* Structure Name */}
+            <div className="space-y-2">
+              <Label htmlFor="structureName">Name (optional)</Label>
+              <Input
+                id="structureName"
+                placeholder="e.g., Class 10 Fee Structure"
+                {...register("name")}
+              />
+              <p className="text-xs text-text-muted">
+                Leave blank to auto-generate from batch name
+              </p>
+            </div>
+
+            {/* Batch Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="batchSelect">Batch</Label>
+              <Controller
+                name="batchId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={isEditing}
+                  >
+                    <SelectTrigger id="batchSelect">
+                      <SelectValue placeholder="Select a batch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {batches.map((batch) => (
+                        <SelectItem key={batch.id} value={batch.id}>
+                          {batch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {isEditing && (
+                <p className="text-xs text-text-muted">
+                  Batch cannot be changed when editing
+                </p>
+              )}
+            </div>
+
+            {/* Session Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="sessionSelect">Academic Session</Label>
+              <Controller
+                name="sessionId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={isEditing}
+                  >
+                    <SelectTrigger id="sessionSelect">
+                      <SelectValue placeholder="Select a session" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sessions.map((session) => (
+                        <SelectItem key={session.id} value={session.id}>
+                          {session.name}
+                          {session.isCurrent && " (Current)"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {isEditing && (
+                <p className="text-xs text-text-muted">
+                  Session cannot be changed when editing
+                </p>
+              )}
+            </div>
+
+            {/* Fee Components Section */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Fee Components</Label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleAddLineItem}
+                  disabled={
+                    !feeComponents ||
+                    lineItems.length >= (feeComponents?.length ?? 0)
+                  }
+                >
+                  <Plus className="mr-1 h-3 w-3" />
+                  Add Component
+                </Button>
+              </div>
+
+              {lineItems.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-border-subtle p-4 text-center text-sm text-text-muted">
+                  No fee components added. Click &quot;Add Component&quot; to
+                  start.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {lineItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-2 rounded-lg border border-border-subtle p-3"
+                    >
+                      <div className="flex-1">
+                        <Select
+                          value={item.feeComponentId}
+                          onValueChange={(value) =>
+                            handleUpdateLineItem(
+                              item.id,
+                              "feeComponentId",
+                              value,
+                            )
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select component" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getAvailableComponents(item.id).map((comp) => (
+                              <SelectItem key={comp.id} value={comp.id}>
+                                {comp.name}
+                              </SelectItem>
+                            ))}
+                            {/* Also show currently selected component */}
+                            {item.feeComponentId &&
+                              !getAvailableComponents(item.id).find(
+                                (c) => c.id === item.feeComponentId,
+                              ) && (
+                                <SelectItem value={item.feeComponentId}>
+                                  {feeComponents?.find(
+                                    (c) => c.id === item.feeComponentId,
+                                  )?.name ?? "Unknown"}
+                                </SelectItem>
+                              )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-32">
+                        <Input
+                          type="number"
+                          placeholder="Amount"
+                          value={item.amount || ""}
+                          onChange={(e) =>
+                            handleUpdateLineItem(
+                              item.id,
+                              "amount",
+                              parseFloat(e.target.value) || 0,
+                            )
+                          }
+                          min={0}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveLineItem(item.id)}
+                        className="text-red-500 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Total Amount Display */}
+              {lineItems.length > 0 && (
+                <div className="flex items-center justify-between rounded-lg bg-bg-subtle p-3">
+                  <span className="font-medium">Total Amount</span>
+                  <span className="text-lg font-semibold text-primary-600">
+                    {formatCurrency(totalAmount)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSaving || lineItems.length === 0}
+              >
+                {isSaving
+                  ? "Saving..."
+                  : isEditing
+                    ? "Update Structure"
+                    : "Create Structure"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
  * Format currency
  */
 function formatCurrency(amount: number): string {
@@ -1731,6 +2606,187 @@ function formatCurrency(amount: number): string {
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+/**
+ * Apply to Students Dialog
+ * Allows applying a batch fee structure to all students in the batch
+ */
+function ApplyToStudentsDialog({
+  open,
+  onOpenChange,
+  structure,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  structure: BatchFeeStructure | null;
+  onSuccess: () => void;
+}) {
+  const [overwriteExisting, setOverwriteExisting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Apply mutation
+  const { mutate: applyStructure, isPending: isApplying } =
+    useApplyBatchFeeStructure();
+
+  // Reset state when dialog opens/closes
+  useEffect(() => {
+    if (open) {
+      queueMicrotask(() => {
+        setOverwriteExisting(false);
+        setError(null);
+      });
+    }
+  }, [open]);
+
+  // Handle apply action
+  const handleApply = useCallback(() => {
+    if (!structure) return;
+
+    setError(null);
+
+    applyStructure(
+      {
+        id: structure.id,
+        overwriteExisting,
+      },
+      {
+        onSuccess: (result) => {
+          // Show success toast with counts
+          if (result.applied > 0) {
+            toast.success(
+              `Applied fee structure to ${result.applied} student${result.applied !== 1 ? "s" : ""}${result.skipped > 0 ? `. ${result.skipped} skipped.` : ""}`,
+            );
+          } else if (result.skipped > 0) {
+            toast.info(
+              `No new fee structures created. ${result.skipped} student${result.skipped !== 1 ? "s" : ""} already had fee structures.`,
+            );
+          } else {
+            toast.info("No students found in this batch.");
+          }
+          onSuccess();
+        },
+        onError: (err) => {
+          const errorMessage =
+            err instanceof Error
+              ? err.message
+              : "Failed to apply fee structure";
+          setError(errorMessage);
+          toast.error(errorMessage);
+        },
+      },
+    );
+  }, [structure, overwriteExisting, applyStructure, onSuccess]);
+
+  if (!structure) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Apply Fee Structure to Students</DialogTitle>
+          <DialogDescription>
+            Apply &quot;{structure.name}&quot; to all active students in{" "}
+            {structure.batch.name}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          {/* Error message */}
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
+              <AlertCircle className="h-4 w-4" />
+              {error}
+            </div>
+          )}
+
+          {/* Structure details */}
+          <div className="rounded-lg bg-bg-subtle p-4 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-text-muted">Batch:</span>
+              <span className="font-medium">{structure.batch.name}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-text-muted">Session:</span>
+              <span className="font-medium">{structure.session.name}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-text-muted">Total Amount:</span>
+              <span className="font-medium text-primary-600">
+                {formatCurrency(structure.totalAmount)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-text-muted">Components:</span>
+              <span className="font-medium">
+                {structure.lineItems?.length ?? 0}
+              </span>
+            </div>
+          </div>
+
+          {/* Warning message */}
+          <div className="flex items-start gap-3 rounded-lg bg-amber-50 p-4 text-sm text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+            <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Important</p>
+              <p className="mt-1 text-xs opacity-90">
+                This will create individual fee structures for all active
+                students in this batch. Students who already have a fee
+                structure for this session will be skipped unless you choose to
+                overwrite.
+              </p>
+            </div>
+          </div>
+
+          {/* Overwrite checkbox */}
+          <div className="space-y-2">
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                id="overwriteExisting"
+                checked={overwriteExisting}
+                onChange={(e) => setOverwriteExisting(e.target.checked)}
+                className="mt-1 rounded border-gray-300"
+              />
+              <div>
+                <Label
+                  htmlFor="overwriteExisting"
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Overwrite existing fee structures
+                </Label>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Replace fee structures for students who already have one for
+                  this session
+                </p>
+              </div>
+            </div>
+
+            {/* Overwrite warning */}
+            {overwriteExisting && (
+              <div className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400 ml-6">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <p className="text-xs">
+                  Warning: This will replace existing fee structures and may
+                  affect any installments or payments already recorded.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleApply} disabled={isApplying}>
+            {isApplying ? "Applying..." : "Apply to Students"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 /**

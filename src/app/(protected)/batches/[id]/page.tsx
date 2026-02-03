@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -24,15 +24,9 @@ import {
   Skeleton,
   DetailPageHeaderSkeleton,
 } from "@/components/ui";
-import {
-  WeeklyScheduleGrid,
-  CalendarScheduleView,
-} from "@/components/batches";
+import { WeeklyScheduleGrid, CalendarScheduleView } from "@/components/batches";
 import { useBatch } from "@/lib/api/batches";
-import {
-  useBatchSchedule,
-  useDefaultPeriodTemplate,
-} from "@/lib/api/schedule";
+import { useBatchSchedule, useDefaultPeriodTemplate } from "@/lib/api/schedule";
 import { usePermissions } from "@/lib/hooks";
 import { academicLevelLabels, streamLabels } from "@/types/batch";
 
@@ -44,12 +38,13 @@ import { academicLevelLabels, streamLabels } from "@/types/batch";
  * - Schedule: Weekly/Calendar schedule view
  */
 export default function BatchDetailPage() {
+  const router = useRouter();
   const params = useParams();
   const batchId = params.id as string;
   const { can } = usePermissions();
 
   const [activeTab, setActiveTab] = useState<"overview" | "schedule">(
-    "overview"
+    "overview",
   );
   const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
 
@@ -77,11 +72,7 @@ export default function BatchDetailPage() {
     return (
       <div className="space-y-6">
         {/* Header Skeleton */}
-        <DetailPageHeaderSkeleton
-          showBackButton
-          badgeCount={1}
-          showActions
-        />
+        <DetailPageHeaderSkeleton showBackButton badgeCount={1} showActions />
 
         {/* Stats Cards Skeleton */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -142,10 +133,8 @@ export default function BatchDetailPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/batches">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
+          <Button variant="ghost" size="sm" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <div className="flex items-center gap-2">

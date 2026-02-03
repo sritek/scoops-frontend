@@ -184,6 +184,33 @@ async function createBatchFeeStructure(
   return response.data;
 }
 
+export interface UpdateBatchFeeStructureInput {
+  name?: string;
+  lineItems?: Array<{
+    feeComponentId: string;
+    amount: number;
+  }>;
+  isActive?: boolean;
+}
+
+async function updateBatchFeeStructure({
+  id,
+  data,
+}: {
+  id: string;
+  data: UpdateBatchFeeStructureInput;
+}): Promise<BatchFeeStructure> {
+  const response = await apiClient.patch<{ data: BatchFeeStructure }>(
+    `/fees/batch-structure/${id}`,
+    data,
+  );
+  return response.data;
+}
+
+async function deleteBatchFeeStructure(id: string): Promise<void> {
+  await apiClient.delete(`/fees/batch-structure/${id}`);
+}
+
 async function applyBatchFeeStructureToStudents({
   id,
   overwriteExisting,
@@ -221,6 +248,26 @@ export function useCreateBatchFeeStructure() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createBatchFeeStructure,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: batchFeeStructureKeys.all });
+    },
+  });
+}
+
+export function useUpdateBatchFeeStructure() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateBatchFeeStructure,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: batchFeeStructureKeys.all });
+    },
+  });
+}
+
+export function useDeleteBatchFeeStructure() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteBatchFeeStructure,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: batchFeeStructureKeys.all });
     },

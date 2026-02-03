@@ -31,7 +31,12 @@ import {
   type StudentFormData,
 } from "@/lib/validations/student";
 import { FormField } from "@/components/forms";
-import { StudentHealthForm, StudentFormStepper } from "@/components/students";
+import {
+  StudentHealthForm,
+  StudentFormStepper,
+  CustomDiscountSection,
+} from "@/components/students";
+import type { CustomDiscountInput } from "@/types/fee";
 import {
   Button,
   Input,
@@ -78,6 +83,9 @@ export default function AddStudentPage() {
   const [selectedScholarships, setSelectedScholarships] = useState<
     Scholarship[]
   >([]);
+  const [customDiscount, setCustomDiscount] = useState<
+    CustomDiscountInput | undefined
+  >(undefined);
 
   const { data: batchesData } = useBatches({ limit: 100 });
   const batches = batchesData?.data ?? [];
@@ -111,8 +119,8 @@ export default function AddStudentPage() {
   const steps = [
     { id: 1, label: "Student Info", icon: <User className="h-4 w-4" /> },
     { id: 2, label: "Parents", icon: <Users className="h-4 w-4" /> },
-    { id: 3, label: "Fees", icon: <CreditCard className="h-4 w-4" /> },
-    { id: 4, label: "Health", icon: <Heart className="h-4 w-4" /> },
+    { id: 3, label: "Health", icon: <Heart className="h-4 w-4" /> },
+    { id: 4, label: "Fees", icon: <CreditCard className="h-4 w-4" /> },
   ];
 
   // Get fields to validate for each step
@@ -142,9 +150,6 @@ export default function AddStudentPage() {
 
   // Handle next step
   const handleNext = async (e?: React.MouseEvent<HTMLButtonElement>) => {
-    // e?.preventDefault(); // Prevent any default behavior
-    // e?.stopPropagation(); // Stop event bubbling
-
     const isValid = await validateStep(currentStep);
 
     if (isValid) {
@@ -227,6 +232,11 @@ export default function AddStudentPage() {
       scholarshipIds:
         selectedScholarships.length > 0
           ? selectedScholarships.map((s) => s.id)
+          : undefined,
+      // Include custom discount if provided and fee structure is selected
+      customDiscount:
+        customDiscount && applyBatchFees && batchFeeStructure
+          ? customDiscount
           : undefined,
       // Include session ID if fees or scholarships are provided
       sessionId:
@@ -547,6 +557,15 @@ export default function AddStudentPage() {
 
         {/* Step 3: Fees & Scholarships */}
         {currentStep === 3 && (
+          <StudentHealthForm
+            control={control}
+            register={register}
+            errors={errors}
+          />
+        )}
+
+        {/* Step 4: Health Information */}
+        {currentStep === 4 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -669,21 +688,106 @@ export default function AddStudentPage() {
                 )}
               </div>
 
+              {/* Custom Discount Section */}
+              <CustomDiscountSection
+                grossAmount={batchFeeStructure?.totalAmount ?? null}
+                hasFeeStructure={applyBatchFees && hasBatchFeeStructure}
+                onChange={setCustomDiscount}
+              />
+
+              {/* Net Payable Summary */}
+              {applyBatchFees && hasBatchFeeStructure && (
+                <div className="p-4 rounded-lg bg-bg-subtle border border-border-subtle space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-muted">Gross Fee:</span>
+                    <span>
+                      ₹{batchFeeStructure.totalAmount.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  {selectedScholarships.length > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-text-muted">Scholarships:</span>
+                      <span className="text-success">
+                        -₹
+                        {selectedScholarships
+                          .reduce((sum, s) => {
+                            if (s.type === "percentage") {
+                              return (
+                                sum +
+                                Math.round(
+                                  (batchFeeStructure.totalAmount * s.value) /
+                                    100,
+                                )
+                              );
+                            }
+                            return sum + s.value;
+                          }, 0)
+                          .toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
+                  {customDiscount && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-text-muted">Custom Discount:</span>
+                      <span className="text-success">
+                        -₹
+                        {(customDiscount.type === "percentage"
+                          ? Math.round(
+                              (batchFeeStructure.totalAmount *
+                                customDiscount.value) /
+                                100,
+                            )
+                          : Math.min(
+                              customDiscount.value,
+                              batchFeeStructure.totalAmount,
+                            )
+                        ).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-medium pt-2 border-t border-border-subtle">
+                    <span>Net Payable:</span>
+                    <span>
+                      ₹
+                      {Math.max(
+                        0,
+                        batchFeeStructure.totalAmount -
+                          selectedScholarships.reduce((sum, s) => {
+                            if (s.type === "percentage") {
+                              return (
+                                sum +
+                                Math.round(
+                                  (batchFeeStructure.totalAmount * s.value) /
+                                    100,
+                                )
+                              );
+                            }
+                            return sum + s.value;
+                          }, 0) -
+                          (customDiscount
+                            ? customDiscount.type === "percentage"
+                              ? Math.round(
+                                  (batchFeeStructure.totalAmount *
+                                    customDiscount.value) /
+                                    100,
+                                )
+                              : Math.min(
+                                  customDiscount.value,
+                                  batchFeeStructure.totalAmount,
+                                )
+                            : 0),
+                      ).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <p className="text-xs text-text-muted">
                 Note: Installments can be generated from the student&apos;s Fees
                 tab after creation.
               </p>
             </CardContent>
           </Card>
-        )}
-
-        {/* Step 4: Health Information */}
-        {currentStep === 4 && (
-          <StudentHealthForm
-            control={control}
-            register={register}
-            errors={errors}
-          />
         )}
 
         {/* Navigation Buttons */}

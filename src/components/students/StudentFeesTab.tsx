@@ -21,6 +21,7 @@ import {
   Plus,
   Trash2,
   RefreshCw,
+  Tag,
 } from "lucide-react";
 import {
   useStudentFeeSummary,
@@ -28,7 +29,11 @@ import {
   useStudentInstallments,
   useRemoveStudentScholarship,
 } from "@/lib/api";
-import type { InstallmentStatus } from "@/types/fee";
+import type { InstallmentStatus, CustomDiscountDisplay } from "@/types/fee";
+import {
+  formatCustomDiscountValue,
+  getCustomDiscountTypeLabel,
+} from "@/types/fee";
 import { CreateFeeStructureDialog } from "./CreateFeeStructureDialog";
 import { AssignScholarshipDialog } from "./AssignScholarshipDialog";
 import { GenerateInstallmentsDialog } from "./GenerateInstallmentsDialog";
@@ -153,7 +158,7 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
 
       {/* Fee Summary Cards */}
       {hasFeeStructure && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <SummaryCard
             label="Gross Fee"
             value={currentSessionStructure?.grossAmount ?? 0}
@@ -163,6 +168,12 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
             label="Scholarship"
             value={currentSessionStructure?.scholarshipAmount ?? 0}
             icon={<Award className="h-4 w-4" />}
+            variant="success"
+          />
+          <SummaryCard
+            label="Custom Discount"
+            value={currentSessionStructure?.customDiscount?.amount ?? 0}
+            icon={<Tag className="h-4 w-4" />}
             variant="success"
           />
           <SummaryCard
@@ -182,7 +193,7 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         {/* Scholarships */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -251,6 +262,21 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
                 </Button>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Custom Discount */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Tag className="h-5 w-5 text-text-muted" />
+              Custom Discount
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CustomDiscountDisplaySection
+              customDiscount={currentSessionStructure?.customDiscount ?? null}
+            />
           </CardContent>
         </Card>
 
@@ -436,6 +462,50 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
   );
 }
 
+function CustomDiscountDisplaySection({
+  customDiscount,
+}: {
+  customDiscount: CustomDiscountDisplay | null;
+}) {
+  if (!customDiscount) {
+    return (
+      <div className="text-center py-6 text-text-muted">
+        <Tag className="h-10 w-10 mx-auto mb-2 opacity-50" />
+        <p>No custom discount applied</p>
+        <p className="text-sm mt-1">
+          Custom discounts can be added during student creation.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between p-3 rounded-lg border border-border-subtle bg-green-50">
+        <div className="flex-1">
+          <p className="font-medium">
+            {getCustomDiscountTypeLabel(customDiscount.type)}
+          </p>
+          <p className="text-sm text-text-muted">
+            {formatCustomDiscountValue(customDiscount)}
+          </p>
+        </div>
+        <Badge variant="success">
+          -₹{customDiscount.amount.toLocaleString()}
+        </Badge>
+      </div>
+      {customDiscount.remarks && (
+        <div className="p-3 rounded-lg bg-surface-subtle">
+          <p className="text-xs text-text-muted uppercase tracking-wide mb-1">
+            Remarks
+          </p>
+          <p className="text-sm">{customDiscount.remarks}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SummaryCard({
   label,
   value,
@@ -517,8 +587,8 @@ function formatDate(dateString: string): string {
 function FeesTabSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {[1, 2, 3, 4, 5].map((i) => (
           <Card key={i}>
             <CardContent className="pt-4">
               <Skeleton className="h-4 w-24 mb-2" />
@@ -527,7 +597,7 @@ function FeesTabSkeleton() {
           </Card>
         ))}
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <Skeleton className="h-6 w-40" />
@@ -536,6 +606,14 @@ function FeesTabSkeleton() {
             {[1, 2].map((i) => (
               <Skeleton key={i} className="h-16 w-full" />
             ))}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-40" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Skeleton className="h-16 w-full" />
           </CardContent>
         </Card>
         <Card>

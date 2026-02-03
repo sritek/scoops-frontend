@@ -155,6 +155,8 @@ export {
   useBatchFeeStructures,
   useBatchFeeStructureByBatch,
   useCreateBatchFeeStructure,
+  useUpdateBatchFeeStructure,
+  useDeleteBatchFeeStructure,
   useApplyBatchFeeStructure,
   useStudentFeeStructure,
   useStudentFeeStructureById,
