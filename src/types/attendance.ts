@@ -131,3 +131,27 @@ export interface AttendanceSummary {
   batchSummaries: BatchAttendanceSummary[];
   pendingBatches: PendingBatch[];
 }
+
+/**
+ * Per-student attendance history types
+ */
+export interface StudentAttendanceRecord {
+  date: string; // YYYY-MM-DD
+  status: "present" | "absent";
+  batchId: string;
+  batchName: string;
+}
+
+export interface StudentAttendanceSummary {
+  totalSessions: number;
+  presentDays: number;
+  absentDays: number;
+  lateDays: number;
+  attendancePercentage: number | null;
+}
+
+export interface StudentAttendanceHistoryResponse {
+  records: StudentAttendanceRecord[];
+  summary: StudentAttendanceSummary;
+  pagination: PaginationMeta;
+}

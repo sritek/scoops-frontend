@@ -9,6 +9,11 @@ import {
   Badge,
   Skeleton,
   Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui";
 import {
   CreditCard,
@@ -28,8 +33,13 @@ import {
   useStudentScholarships,
   useStudentInstallments,
   useRemoveStudentScholarship,
+  downloadPaymentSummaryPDF,
 } from "@/lib/api";
-import type { InstallmentStatus, CustomDiscountDisplay } from "@/types/fee";
+import type {
+  InstallmentStatus,
+  CustomDiscountDisplay,
+  InstallmentPayment,
+} from "@/types/fee";
 import {
   formatCustomDiscountValue,
   getCustomDiscountTypeLabel,
@@ -58,6 +68,10 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
     useState(false);
   const [showGenerateInstallmentsDialog, setShowGenerateInstallmentsDialog] =
     useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<
+    (InstallmentPayment & { installmentNumber: number }) | null
+  >(null);
+  const [downloadPaymentLoading, setDownloadPaymentLoading] = useState(false);
 
   const {
     data: feeSummary,
@@ -131,6 +145,42 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
     refetchSummary();
   };
 
+  const handleDownloadPaymentSummary = async () => {
+    if (!selectedPayment) return;
+    setDownloadPaymentLoading(true);
+    try {
+      const blob = await downloadPaymentSummaryPDF(selectedPayment.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Payment_Summary_${selectedPayment.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success("Payment summary downloaded");
+    } catch {
+      toast.error("Failed to download payment summary");
+    } finally {
+      setDownloadPaymentLoading(false);
+    }
+  };
+
+  const paymentList =
+    currentInstallments &&
+    currentInstallments
+      .flatMap((inst) =>
+        (inst.payments || []).map((p) => ({
+          ...p,
+          installmentNumber: inst.installmentNumber,
+        })),
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
+      )
+      .slice(0, 10);
+
   return (
     <div className="space-y-6">
       {/* No Fee Structure Alert */}
@@ -202,7 +252,7 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
               Applied Scholarships
             </CardTitle>
             <Button
-              variant="outline"
+              variant="primary"
               size="sm"
               onClick={() => setShowAssignScholarshipDialog(true)}
             >
@@ -252,7 +302,7 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
                 <Award className="h-10 w-10 mx-auto mb-2 opacity-50" />
                 <p>No scholarships applied</p>
                 <Button
-                  variant="outline"
+                  variant="primary"
                   size="sm"
                   className="mt-3"
                   onClick={() => setShowAssignScholarshipDialog(true)}
@@ -289,7 +339,7 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
             </CardTitle>
             {hasFeeStructure && !hasInstallments && (
               <Button
-                variant="outline"
+                variant="primary"
                 size="sm"
                 onClick={() => setShowGenerateInstallmentsDialog(true)}
               >
@@ -335,17 +385,7 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
               <div className="text-center py-6 text-text-muted">
                 <Calendar className="h-10 w-10 mx-auto mb-2 opacity-50" />
                 <p>No installments generated</p>
-                {hasFeeStructure ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() => setShowGenerateInstallmentsDialog(true)}
-                  >
-                    <RefreshCw className="h-4 w-4 mr-1" />
-                    Generate Installments
-                  </Button>
-                ) : (
+                {hasFeeStructure ? null : (
                   <p className="text-sm mt-1">
                     Create a fee structure first to generate installments.
                   </p>
@@ -357,80 +397,141 @@ export function StudentFeesTab({ studentId, batchId }: StudentFeesTabProps) {
       </div>
 
       {/* Payment History - Shows InstallmentPayment records */}
-      {currentInstallments &&
-        currentInstallments.some(
-          (i) => i.payments && i.payments.length > 0,
-        ) && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <CheckCircle className="h-5 w-5 text-text-muted" />
-                Payment History
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-surface-elevated">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-medium text-text-muted">
-                        Date
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium text-text-muted">
-                        Installment
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium text-text-muted">
-                        Mode
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium text-text-muted">
-                        Reference
-                      </th>
-                      <th className="px-4 py-3 text-right font-medium text-text-muted">
-                        Amount
-                      </th>
+      {paymentList && paymentList.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <CheckCircle className="h-5 w-5 text-text-muted" />
+              Payment History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-elevated">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium text-text-muted">
+                      Date
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-text-muted">
+                      Installment
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-text-muted">
+                      Mode
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-text-muted">
+                      Reference
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-text-muted">
+                      Remarks
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium text-text-muted">
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {paymentList.map((payment) => (
+                    <tr
+                      key={payment.id}
+                      role="button"
+                      tabIndex={0}
+                      className="cursor-pointer hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+                      onClick={() => setSelectedPayment(payment)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedPayment(payment);
+                        }
+                      }}
+                    >
+                      <td className="px-4 py-3">
+                        {formatDate(payment.receivedAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        #{payment.installmentNumber}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant="default" className="capitalize">
+                          {payment.paymentMode}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-text-muted">
+                        {payment.transactionRef || "—"}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-text-muted max-w-[200px] truncate"
+                        title={payment.remarks || undefined}
+                      >
+                        {payment.remarks || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-success">
+                        ₹{payment.amount.toLocaleString()}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border-subtle">
-                    {currentInstallments
-                      .flatMap((inst) =>
-                        (inst.payments || []).map((p) => ({
-                          ...p,
-                          installmentNumber: inst.installmentNumber,
-                        })),
-                      )
-                      .sort(
-                        (a, b) =>
-                          new Date(b.receivedAt).getTime() -
-                          new Date(a.receivedAt).getTime(),
-                      )
-                      .slice(0, 10)
-                      .map((payment) => (
-                        <tr key={payment.id} className="hover:bg-surface-hover">
-                          <td className="px-4 py-3">
-                            {formatDate(payment.receivedAt)}
-                          </td>
-                          <td className="px-4 py-3">
-                            #{payment.installmentNumber}
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant="default" className="capitalize">
-                              {payment.paymentMode}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3 text-text-muted">
-                            {payment.transactionRef || "—"}
-                          </td>
-                          <td className="px-4 py-3 text-right font-medium text-success">
-                            ₹{payment.amount.toLocaleString()}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Payment details modal */}
+      <Dialog
+        open={!!selectedPayment}
+        onOpenChange={(open) => !open && setSelectedPayment(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Payment details</DialogTitle>
+          </DialogHeader>
+          {selectedPayment && (
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <span className="text-text-muted">Date</span>
+                <span>{formatDate(selectedPayment.receivedAt)}</span>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <div className="flex justify-between gap-4">
+                <span className="text-text-muted">Installment</span>
+                <span>#{selectedPayment.installmentNumber}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-text-muted">Mode</span>
+                <span className="capitalize">{selectedPayment.paymentMode}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-text-muted">Reference</span>
+                <span>{selectedPayment.transactionRef || "—"}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-text-muted">Amount</span>
+                <span className="font-medium text-success">
+                  ₹{selectedPayment.amount.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-text-muted">Remarks</span>
+                <span>{selectedPayment.remarks || "—"}</span>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setSelectedPayment(null)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={handleDownloadPaymentSummary}
+              disabled={!selectedPayment || downloadPaymentLoading}
+            >
+              {downloadPaymentLoading ? "Downloading…" : "Download"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialogs */}
       <CreateFeeStructureDialog

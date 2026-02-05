@@ -257,7 +257,70 @@ body {
 }
 
 /* =============================================================================
-   8. DARK MODE
+   8. LINK UTILITIES
+   Reusable styles for inline actions
+   ============================================================================= */
+
+.link-danger {
+  color: var(--error);
+  text-decoration: underline;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font: inherit;
+  padding: 0;
+}
+.link-danger:hover {
+  opacity: 0.9;
+}
+
+/* Disabled/muted filter link: grey, not clickable (use when no filters selected) */
+.link-filter-muted {
+  color: var(--text-muted);
+  cursor: default;
+  text-decoration: none;
+  background: none;
+  border: none;
+  font: inherit;
+  padding: 0;
+  pointer-events: none;
+}
+
+/* =============================================================================
+   DESTRUCTIVE CONFIRM BUTTON (Deactivate / irreversible actions)
+   Red button style matching the Deactivate primary action
+   Use for confirmation modals where user must type "confirm"
+   ============================================================================= */
+.btn-destructive-confirm {
+  background-color: var(--error);
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: var(--leading-normal);
+  padding: 0.5rem 1rem;
+  min-height: 44px;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.btn-destructive-confirm:hover:not(:disabled) {
+  background-color: #b91c1c; /* red-700 */
+}
+.btn-destructive-confirm:active:not(:disabled) {
+  background-color: #991b1b; /* red-800 */
+}
+.btn-destructive-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-destructive-confirm:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: var(--ring-offset);
+}
+
+/* =============================================================================
+   9. DARK MODE
    Activated when .dark class is on <html> element
    Uses same CSS variables with dark-appropriate values
    ============================================================================= */
@@ -302,7 +365,7 @@ body {
 }
 
 /* =============================================================================
-   9. ANIMATIONS
+   10. ANIMATIONS
    Custom keyframes for UI components
    ============================================================================= */
 
@@ -317,7 +380,7 @@ body {
 }
 
 /* =============================================================================
-   10. PRINT STYLES
+   11. PRINT STYLES
    Optimized for printing weekly schedules
    ============================================================================= */
 

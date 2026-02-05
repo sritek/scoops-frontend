@@ -20,6 +20,8 @@ export interface PaginationProps {
   className?: string;
   /** Show "Showing X-Y of Z" text */
   showInfo?: boolean;
+  /** Show rows per page selector */
+  showLimitSelector?: boolean;
 }
 
 /**
@@ -44,6 +46,7 @@ export function Pagination({
   limitOptions = DEFAULT_LIMIT_OPTIONS,
   className,
   showInfo = true,
+  showLimitSelector = true,
 }: PaginationProps) {
   const { page, limit, total, totalPages, hasNext, hasPrev } = pagination;
 
@@ -56,14 +59,14 @@ export function Pagination({
 
   if (totalPages <= 1) {
     // Show minimal view for single page (item count + optional rows per page selector)
-    if (!showInfo && !onLimitChange) return null;
-    if (total === 0 && !onLimitChange) return null;
+    if (!showInfo && (!onLimitChange || !showLimitSelector)) return null;
+    if (total === 0 && (!onLimitChange || !showLimitSelector)) return null;
 
     return (
       <div
         className={cn(
           "flex items-center justify-center gap-4 py-3",
-          onLimitChange && "sm:justify-between",
+          showLimitSelector && onLimitChange && "sm:justify-between",
           className
         )}
       >
@@ -73,7 +76,7 @@ export function Pagination({
           </p>
         )}
 
-        {onLimitChange && (
+        {showLimitSelector && onLimitChange && (
           <div className="flex items-center gap-2">
             <label
               htmlFor="rows-per-page-single"
@@ -120,7 +123,7 @@ export function Pagination({
         )}
 
         {/* Rows per page selector */}
-        {onLimitChange && (
+        {showLimitSelector && onLimitChange && (
           <div className="flex items-center gap-2">
             <label
               htmlFor="rows-per-page"

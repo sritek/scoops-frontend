@@ -37,6 +37,14 @@ import {
   TabsList,
   TabsTrigger,
   TabsContent,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+  Input,
+  Label,
 } from "@/components/ui";
 import type { ExamType } from "@/types/exam";
 import {
@@ -69,6 +77,8 @@ export default function StudentDetailPage({
   const { mutate: deactivateStudent, isPending } = useDeleteStudent();
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [showIdCard, setShowIdCard] = useState(false);
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivateConfirmText, setDeactivateConfirmText] = useState("");
   const { can } = usePermissions();
 
   const canEditStudent = can("STUDENT_EDIT");
@@ -100,6 +110,8 @@ export default function StudentDetailPage({
 
     deactivateStudent(student.id, {
       onSuccess: () => {
+        setShowDeactivateModal(false);
+        setDeactivateConfirmText("");
         toast.success("Student deactivated successfully");
       },
       onError: () => {
@@ -107,6 +119,14 @@ export default function StudentDetailPage({
       },
     });
   };
+
+  const openDeactivateModal = () => setShowDeactivateModal(true);
+  const handleDeactivateModalOpenChange = (open: boolean) => {
+    setShowDeactivateModal(open);
+    if (!open) setDeactivateConfirmText("");
+  };
+  const canConfirmDeactivate =
+    deactivateConfirmText.trim().toLowerCase() === "confirm";
 
   if (isLoading) {
     return <StudentDetailSkeleton />;
@@ -188,7 +208,7 @@ export default function StudentDetailPage({
                   variant="destructive"
                   isLoading={isPending}
                   disabled={isPending}
-                  onClick={handleDeactivate}
+                  onClick={openDeactivateModal}
                 >
                   <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
                   Deactivate
@@ -565,6 +585,52 @@ export default function StudentDetailPage({
           admissionYear: student.admissionYear,
         }}
       />
+
+      {/* Deactivate confirmation modal */}
+      <Dialog
+        open={showDeactivateModal}
+        onOpenChange={handleDeactivateModalOpenChange}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate student</DialogTitle>
+            <DialogDescription>
+              This is not reversible. Once deactivated you cannot activate the
+              student again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="deactivate-confirm" className="sr-only">
+              Type confirm to deactivate
+            </Label>
+            <Input
+              id="deactivate-confirm"
+              type="text"
+              placeholder="Type &quot;confirm&quot; to deactivate student"
+              value={deactivateConfirmText}
+              onChange={(e) => setDeactivateConfirmText(e.target.value)}
+              className="mt-2"
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="secondary"
+              onClick={() => handleDeactivateModalOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <button
+              type="button"
+              className="btn-destructive-confirm"
+              disabled={!canConfirmDeactivate || isPending}
+              onClick={handleDeactivate}
+            >
+              {isPending ? "Deactivating…" : "Confirm"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

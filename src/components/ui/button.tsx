@@ -73,7 +73,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(
           // Base styles
           "inline-flex items-center justify-center gap-2",
-          "rounded-lg font-medium",
+          "rounded-lg font-medium cursor-pointer",
           "transition-colors duration-150",
           // Focus ring (WCAG AA)
           "focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",

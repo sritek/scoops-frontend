@@ -20,6 +20,7 @@ export {
   useReceipt,
   useSendReceiptViaWhatsApp,
   downloadReceiptPDF,
+  downloadPaymentSummaryPDF,
   feesKeys,
 } from "./fees";
 export type { ReceiptsParams } from "./fees";

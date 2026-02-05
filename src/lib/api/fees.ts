@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "./client";
+import { apiClient, getStoredToken } from "./client";
 import { config } from "@/config";
 import type { Receipt, ReceiptDetails } from "@/types/fee";
 import type { PaginatedResponse, PaginationParams } from "@/types";
@@ -81,6 +81,27 @@ export async function downloadReceiptPDF(id: string): Promise<Blob> {
 
   if (!response.ok) {
     throw new Error("Failed to download receipt");
+  }
+
+  return response.blob();
+}
+
+/**
+ * Download payment summary PDF
+ * Returns the PDF blob
+ */
+export async function downloadPaymentSummaryPDF(paymentId: string): Promise<Blob> {
+  const token = getStoredToken();
+  const response = await fetch(
+    `${config.api.baseUrl}/fees/payments/${paymentId}/summary-pdf`,
+    {
+      method: "GET",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to download payment summary");
   }
 
   return response.blob();

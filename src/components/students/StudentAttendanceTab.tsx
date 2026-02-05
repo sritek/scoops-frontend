@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { type ColumnDef } from "@tanstack/react-table";
 import {
   Card,
   CardContent,
@@ -10,20 +11,47 @@ import {
   Skeleton,
   Input,
   Label,
-  Button,
+  DataTable,
 } from "@/components/ui";
 import {
   Calendar,
-  Users,
   CheckCircle,
-  XCircle,
   TrendingUp,
   AlertCircle,
-  ExternalLink,
 } from "lucide-react";
-import { useAttendanceHistory } from "@/lib/api/attendance";
-import type { AttendanceHistoryItem } from "@/types/attendance";
-import Link from "next/link";
+import { useStudentAttendanceHistory } from "@/lib/api/attendance";
+import type {
+  StudentAttendanceHistoryResponse,
+  StudentAttendanceRecord,
+} from "@/types/attendance";
+
+const attendanceHistoryColumns: ColumnDef<StudentAttendanceRecord>[] = [
+  {
+    accessorKey: "date",
+    header: "Date",
+    cell: ({ getValue }) => formatDate(getValue() as string),
+  },
+  {
+    accessorKey: "batchName",
+    header: "Batch",
+    cell: ({ getValue }) => getValue() as string,
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ getValue }) => {
+      const status = getValue() as "present" | "absent";
+      return (
+        <Badge
+          variant={status === "present" ? "success" : "error"}
+          className="px-2 py-0.5 text-xs capitalize"
+        >
+          {status === "present" ? "Present" : "Absent"}
+        </Badge>
+      );
+    },
+  },
+];
 
 interface StudentAttendanceTabProps {
   studentId: string;
@@ -40,8 +68,7 @@ interface StudentAttendanceTabProps {
  * - Links to detailed attendance view
  */
 export function StudentAttendanceTab({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  studentId: _studentId,
+  studentId,
   batchId,
   batchName,
 }: StudentAttendanceTabProps) {
@@ -56,45 +83,36 @@ export function StudentAttendanceTab({
   const [endDate, setEndDate] = useState(
     new Date().toISOString().split("T")[0]
   );
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  // Fetch attendance history for the student's batch
-  const { data: attendanceData, isLoading } = useAttendanceHistory({
-    batchId: batchId ?? undefined,
-    startDate,
-    endDate,
-    limit: 100,
-  });
+  // Reset to page 1 when date range changes
+  useEffect(() => {
+    setPage(1);
+  }, [startDate, endDate]);
 
-  // Calculate summary stats
-  const summary = useMemo(() => {
-    if (!attendanceData?.data || attendanceData.data.length === 0) {
-      return null;
+  // Fetch attendance history for this student (paginated)
+  const { data: attendanceData, isLoading } = useStudentAttendanceHistory(
+    studentId,
+    {
+      startDate,
+      endDate,
+      page,
+      limit: pageSize,
     }
+  );
 
-    const sessions = attendanceData.data as AttendanceHistoryItem[];
-    const totalSessions = sessions.length;
-    const avgAttendanceRate =
-      Math.round(
-        sessions.reduce(
-          (sum: number, s: AttendanceHistoryItem) =>
-            sum + s.stats.attendanceRate,
-          0
-        ) / totalSessions
-      ) || 0;
-    const highestRate = Math.max(
-      ...sessions.map((s: AttendanceHistoryItem) => s.stats.attendanceRate)
-    );
-    const lowestRate = Math.min(
-      ...sessions.map((s: AttendanceHistoryItem) => s.stats.attendanceRate)
-    );
+  const response = attendanceData as
+    | StudentAttendanceHistoryResponse
+    | undefined;
+  const summary = response?.summary ?? null;
+  const pagination = response?.pagination;
+  const records = response?.records ?? [];
 
-    return {
-      totalSessions,
-      avgAttendanceRate,
-      highestRate,
-      lowestRate,
-    };
-  }, [attendanceData]);
+  const handleLimitChange = (limit: number) => {
+    setPageSize(limit);
+    setPage(1);
+  };
 
   if (!batchId) {
     return (
@@ -119,32 +137,6 @@ export function StudentAttendanceTab({
 
   return (
     <div className="space-y-6">
-      {/* Batch Context */}
-      <Card className="bg-primary-50/50 border-primary-200">
-        <CardContent className="py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Users className="h-5 w-5 text-primary-600" />
-              <div>
-                <p className="font-medium text-text-primary">
-                  Viewing attendance for batch: {batchName || "Unknown"}
-                </p>
-                <p className="text-sm text-text-muted">
-                  Individual student records are tracked within batch attendance
-                  sessions.
-                </p>
-              </div>
-            </div>
-            <Button variant="secondary" size="sm" asChild>
-              <Link href={`/batches/${batchId}`}>
-                <ExternalLink className="h-4 w-4 mr-2" />
-                View Batch
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Date Filter */}
       <Card>
         <CardHeader>
@@ -181,35 +173,33 @@ export function StudentAttendanceTab({
 
       {/* Summary Stats */}
       {summary && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <SummaryCard
             label="Total Sessions"
             value={summary.totalSessions}
             icon={<Calendar className="h-4 w-4" />}
           />
           <SummaryCard
-            label="Avg. Attendance Rate"
-            value={`${summary.avgAttendanceRate}%`}
+            label="Attendance Rate"
+            value={
+              summary.attendancePercentage !== null
+                ? `${summary.attendancePercentage}%`
+                : "N/A"
+            }
             icon={<TrendingUp className="h-4 w-4" />}
             variant={
-              summary.avgAttendanceRate >= 75
+              (summary.attendancePercentage ?? 0) >= 75
                 ? "success"
-                : summary.avgAttendanceRate >= 50
+                : (summary.attendancePercentage ?? 0) >= 50
                 ? "warning"
                 : "error"
             }
           />
           <SummaryCard
-            label="Highest Rate"
-            value={`${summary.highestRate}%`}
+            label="Present Days"
+            value={summary.presentDays}
             icon={<CheckCircle className="h-4 w-4" />}
             variant="success"
-          />
-          <SummaryCard
-            label="Lowest Rate"
-            value={`${summary.lowestRate}%`}
-            icon={<XCircle className="h-4 w-4" />}
-            variant={summary.lowestRate < 50 ? "error" : "default"}
           />
         </div>
       )}
@@ -223,68 +213,30 @@ export function StudentAttendanceTab({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {attendanceData?.data && attendanceData.data.length > 0 ? (
-            <div className="space-y-3">
-              {(attendanceData.data as AttendanceHistoryItem[]).map(
-                (session) => (
-                  <div
-                    key={session.id}
-                    className="flex items-center justify-between p-4 rounded-lg border border-border-subtle hover:bg-surface-hover transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex flex-col items-center p-2 bg-surface-elevated rounded min-w-[60px]">
-                        <span className="text-xs text-text-muted uppercase">
-                          {formatDayOfWeek(session.date)}
-                        </span>
-                        <span className="text-lg font-bold">
-                          {formatDayNumber(session.date)}
-                        </span>
-                        <span className="text-xs text-text-muted">
-                          {formatMonth(session.date)}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-medium">
-                          {formatDate(session.date)}
-                        </p>
-                        <p className="text-sm text-text-muted">
-                          Marked by {session.createdBy.name}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="success">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            {session.stats.present}
-                          </Badge>
-                          <Badge variant="error">
-                            <XCircle className="h-3 w-3 mr-1" />
-                            {session.stats.absent}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-text-muted mt-1">
-                          of {session.stats.total} students
-                        </p>
-                      </div>
-                      <AttendanceRateBadge
-                        rate={session.stats.attendanceRate}
-                      />
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          ) : (
+          {pagination?.total === 0 ? (
             <div className="text-center py-12 text-text-muted">
               <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="font-medium">No Attendance Records</p>
               <p className="text-sm mt-1">
-                No attendance has been marked for this batch in the selected
+                No attendance has been recorded for this student in the selected
                 date range.
               </p>
             </div>
+          ) : (
+            <>
+              <DataTable<StudentAttendanceRecord>
+                columns={attendanceHistoryColumns}
+                data={records}
+                paginationMode="server"
+                serverPagination={pagination!}
+                onPageChange={setPage}
+                onLimitChange={handleLimitChange}
+                limitOptions={[10, 20, 50]}
+                showLimitSelector={true}
+                isLoading={isLoading}
+                emptyMessage="No attendance records in this range."
+              />
+            </>
           )}
         </CardContent>
       </Card>
@@ -325,45 +277,12 @@ function SummaryCard({
   );
 }
 
-function AttendanceRateBadge({ rate }: { rate: number }) {
-  const variant =
-    rate >= 90
-      ? "success"
-      : rate >= 75
-      ? "default"
-      : rate >= 50
-      ? "warning"
-      : "error";
-
-  return (
-    <Badge variant={variant} className="text-base px-3 py-1">
-      {rate}%
-    </Badge>
-  );
-}
-
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-IN", {
     year: "numeric",
     month: "short",
     day: "numeric",
     weekday: "short",
-  });
-}
-
-function formatDayOfWeek(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-IN", {
-    weekday: "short",
-  });
-}
-
-function formatDayNumber(dateString: string): string {
-  return new Date(dateString).getDate().toString();
-}
-
-function formatMonth(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-IN", {
-    month: "short",
   });
 }
 

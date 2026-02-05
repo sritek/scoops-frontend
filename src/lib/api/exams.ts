@@ -3,7 +3,8 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "./client";
+import { apiClient, getStoredToken } from "./client";
+import { config } from "@/config";
 import type {
   Exam,
   ExamDetail,
@@ -80,10 +81,14 @@ export async function fetchStudentReportCard(studentId: string): Promise<ReportC
  * Download report card as PDF
  */
 export async function downloadReportCardPDF(studentId: string): Promise<Blob> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/exams/report-card/${studentId}/pdf`, {
-    method: "GET",
-    credentials: "include",
-  });
+  const token = getStoredToken();
+  const response = await fetch(
+    `${config.api.baseUrl}/exams/report-card/${studentId}/pdf`,
+    {
+      method: "GET",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }
+  );
 
   if (!response.ok) {
     throw new Error("Failed to download report card");

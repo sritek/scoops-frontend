@@ -41,10 +41,11 @@ export default function StudentsPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [selectedGender, setSelectedGender] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const limitOptions = [10, 20, 50, 100];
   const { can } = usePermissions();
 
   // Debounce search for server-side filtering
-  const debouncedSearch = useDebounce(searchQuery, 300);
+  const debouncedSearch = useDebounce(searchQuery, 500);
 
   // Fetch batches for filter dropdown
   const { data: batchesData } = useBatches({ limit: 100 });
@@ -114,6 +115,14 @@ export default function StudentsPage() {
     selectedStatus ||
     selectedGender ||
     selectedCategory;
+
+  // Clear filters button only when a dropdown filter is selected (not for search alone)
+  const hasDropdownFilters = !!(
+    selectedBatchId ||
+    selectedStatus ||
+    selectedGender ||
+    selectedCategory
+  );
 
   // Column definitions for the DataTable
   const columns: ColumnDef<Student>[] = useMemo(
@@ -248,9 +257,8 @@ export default function StudentsPage() {
 
       {/* Filters */}
       <div className="space-y-3">
-        {/* First Row: Search and Clear Filters */}
+        {/* First Row: Search */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          {/* Search */}
           <div className="relative flex-1 max-w-sm">
             <Search
               className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
@@ -265,16 +273,9 @@ export default function StudentsPage() {
               aria-label="Search students"
             />
           </div>
-
-          {/* Clear Filters */}
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              Clear filters
-            </Button>
-          )}
         </div>
 
-        {/* Second Row: Filter Dropdowns */}
+        {/* Second Row: Filter Dropdowns and Rows per page */}
         <div className="flex flex-wrap items-center gap-2">
           <Filter className="h-4 w-4 text-text-muted" aria-hidden="true" />
 
@@ -344,6 +345,40 @@ export default function StudentsPage() {
               <SelectItem value="minority">Minority</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Clear filters: right of All Categories, left of Rows per page */}
+          <button
+            type="button"
+            className={`shrink-0 ${hasDropdownFilters ? "link-danger" : "link-filter-muted"}`}
+            onClick={hasDropdownFilters ? clearFilters : undefined}
+            disabled={!hasDropdownFilters}
+            aria-label="Clear filters"
+          >
+            Clear filters
+          </button>
+
+          {/* Rows per page: right side of filter row */}
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <label
+              htmlFor="students-rows-per-page"
+              className="hidden text-sm text-text-muted sm:inline"
+            >
+              Rows per page:
+            </label>
+            <select
+              id="students-rows-per-page"
+              value={pageLimit}
+              onChange={(e) => handleLimitChange(Number(e.target.value))}
+              className="h-9 rounded-lg border border-border-subtle bg-bg-surface px-2 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+              aria-label="Rows per page"
+            >
+              {limitOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -391,9 +426,15 @@ export default function StudentsPage() {
                     : "No students match the selected filters"
                 }
                 action={
-                  <Button variant="secondary" onClick={clearFilters}>
-                    Clear filters
-                  </Button>
+                  hasDropdownFilters ? (
+                    <button
+                      type="button"
+                      className="link-danger"
+                      onClick={clearFilters}
+                    >
+                      Clear filters
+                    </button>
+                  ) : undefined
                 }
               />
             </Card>
@@ -409,6 +450,7 @@ export default function StudentsPage() {
                 isLoading={isLoading}
                 pageSize={pageLimit}
                 emptyMessage="No students found."
+                showLimitSelector={false}
               />
             </Card>
           )}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { type ColumnDef } from "@tanstack/react-table";
 import {
   Card,
   CardContent,
@@ -15,6 +16,7 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
+  DataTable,
 } from "@/components/ui";
 import {
   BookOpen,
@@ -24,12 +26,13 @@ import {
   AlertCircle,
   FileText,
   ExternalLink,
-  Users,
 } from "lucide-react";
 import {
   useHomeworkList,
   type HomeworkStatus,
+  type HomeworkListItem,
 } from "@/lib/api/homework";
+import type { PaginationMeta } from "@/types";
 
 interface StudentHomeworkTabProps {
   studentId: string;
@@ -42,6 +45,93 @@ const STATUS_LABELS: Record<HomeworkStatus, string> = {
   published: "Published",
   closed: "Closed",
 };
+
+function formatHomeworkDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+const homeworkTableColumns: ColumnDef<HomeworkListItem>[] = [
+  {
+    accessorKey: "title",
+    header: "Title",
+    cell: ({ row }) => (
+      <Link
+        href={`/homework/${row.original.id}`}
+        className="font-medium text-primary-600 hover:underline"
+      >
+        {row.original.title}
+      </Link>
+    ),
+  },
+  {
+    accessorKey: "subjectName",
+    header: "Subject",
+    cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+  },
+  {
+    accessorKey: "dueDate",
+    header: "Due Date",
+    cell: ({ getValue }) => formatHomeworkDate(getValue() as string),
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }) => (
+      <HomeworkStatusBadge
+        status={row.original.status}
+        isOverdue={row.original.isOverdue}
+      />
+    ),
+  },
+  {
+    accessorKey: "submissionCount",
+    header: "Submissions",
+    cell: ({ getValue }) => getValue() as number,
+  },
+  {
+    id: "actions",
+    header: "",
+    cell: ({ row }) => (
+      <Button variant="outline" size="sm" asChild>
+        <Link href={`/homework/${row.original.id}`}>
+          <ExternalLink className="h-4 w-4 mr-1" />
+          View
+        </Link>
+      </Button>
+    ),
+  },
+];
+
+function HomeworkStatusBadge({
+  status,
+  isOverdue,
+}: {
+  status: HomeworkStatus;
+  isOverdue: boolean;
+}) {
+  if (isOverdue && status === "published") {
+    return (
+      <Badge variant="error" className="flex items-center gap-1 w-fit">
+        <Clock className="h-3 w-3" />
+        Overdue
+      </Badge>
+    );
+  }
+  const variants: Record<HomeworkStatus, "success" | "warning" | "default"> = {
+    draft: "default",
+    published: "success",
+    closed: "default",
+  };
+  return (
+    <Badge variant={variants[status]} className="w-fit">
+      {STATUS_LABELS[status]}
+    </Badge>
+  );
+}
 
 /**
  * Student Homework Tab Component
@@ -59,11 +149,18 @@ export function StudentHomeworkTab({
   const [statusFilter, setStatusFilter] = useState<HomeworkStatus | "all">(
     "all"
   );
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
 
   const { data: homeworkData, isLoading } = useHomeworkList({
     batchId: batchId ?? undefined,
     status: statusFilter === "all" ? undefined : statusFilter,
-    limit: 50,
+    page,
+    limit: pageSize,
   });
 
   if (!batchId) {
@@ -88,8 +185,23 @@ export function StudentHomeworkTab({
   }
 
   const homeworkItems = homeworkData?.data ?? [];
+  const paginationRaw = homeworkData?.pagination;
+  const totalAssignments = paginationRaw?.total ?? 0;
 
-  // Count by status
+  const serverPagination: PaginationMeta | undefined = paginationRaw
+    ? {
+        ...paginationRaw,
+        hasNext: paginationRaw.page < paginationRaw.totalPages,
+        hasPrev: paginationRaw.page > 1,
+      }
+    : undefined;
+
+  const handleLimitChange = (limit: number) => {
+    setPageSize(limit);
+    setPage(1);
+  };
+
+  // Count by status (current page, for summary cards)
   const statusCounts = homeworkItems.reduce(
     (acc, hw) => {
       acc[hw.status] = (acc[hw.status] || 0) + 1;
@@ -102,37 +214,11 @@ export function StudentHomeworkTab({
 
   return (
     <div className="space-y-6">
-      {/* Batch Context */}
-      <Card className="bg-primary-50/50 border-primary-200">
-        <CardContent className="py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Users className="h-5 w-5 text-primary-600" />
-              <div>
-                <p className="font-medium text-text-primary">
-                  Viewing homework for batch: {batchName || "Unknown"}
-                </p>
-                <p className="text-sm text-text-muted">
-                  Homework is assigned to the entire batch, not individual
-                  students.
-                </p>
-              </div>
-            </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/homework">
-                <ExternalLink className="h-4 w-4 mr-2" />
-                All Homework
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Summary Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
           label="Total Assignments"
-          value={homeworkItems.length}
+          value={totalAssignments}
           icon={<BookOpen className="h-4 w-4" />}
         />
         <SummaryCard
@@ -194,13 +280,7 @@ export function StudentHomeworkTab({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {homeworkItems.length > 0 ? (
-            <div className="space-y-4">
-              {homeworkItems.map((homework) => (
-                <HomeworkCard key={homework.id} homework={homework} />
-              ))}
-            </div>
-          ) : (
+          {totalAssignments === 0 ? (
             <div className="text-center py-12 text-text-muted">
               <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="font-medium">No Homework Assignments</p>
@@ -210,103 +290,24 @@ export function StudentHomeworkTab({
                   : "No homework has been assigned to this batch yet."}
               </p>
             </div>
+          ) : (
+            <DataTable<HomeworkListItem>
+              columns={homeworkTableColumns}
+              data={homeworkItems}
+              paginationMode="server"
+              serverPagination={serverPagination!}
+              onPageChange={setPage}
+              onLimitChange={handleLimitChange}
+              limitOptions={[10, 20, 50]}
+              showLimitSelector={true}
+              isLoading={isLoading}
+              emptyMessage="No homework in this range."
+            />
           )}
         </CardContent>
       </Card>
     </div>
   );
-}
-
-interface HomeworkCardProps {
-  homework: {
-    id: string;
-    title: string;
-    description: string;
-    dueDate: string;
-    totalMarks: number | null;
-    status: HomeworkStatus;
-    subjectName: string | null;
-    submissionCount: number;
-    isOverdue: boolean;
-    createdAt: string;
-  };
-}
-
-function HomeworkCard({ homework }: HomeworkCardProps) {
-  return (
-    <div className="p-4 rounded-lg border border-border-subtle hover:bg-surface-hover transition-colors">
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            {homework.subjectName && (
-              <Badge variant="secondary">{homework.subjectName}</Badge>
-            )}
-            <StatusBadge status={homework.status} isOverdue={homework.isOverdue} />
-          </div>
-
-          <Link
-            href={`/homework/${homework.id}`}
-            className="text-lg font-medium text-text-primary hover:text-primary-600 hover:underline"
-          >
-            {homework.title}
-          </Link>
-
-          <p className="text-sm text-text-muted mt-1 line-clamp-2">
-            {homework.description}
-          </p>
-
-          <div className="flex flex-wrap gap-4 mt-3 text-sm text-text-muted">
-            <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              <span>Due: {formatDate(homework.dueDate)}</span>
-            </div>
-            {homework.totalMarks && (
-              <div className="flex items-center gap-1">
-                <FileText className="h-4 w-4" />
-                <span>{homework.totalMarks} marks</span>
-              </div>
-            )}
-            <div className="flex items-center gap-1">
-              <CheckCircle className="h-4 w-4" />
-              <span>{homework.submissionCount} submissions</span>
-            </div>
-          </div>
-        </div>
-
-        <Button variant="outline" size="sm" asChild>
-          <Link href={`/homework/${homework.id}`}>
-            <ExternalLink className="h-4 w-4 mr-1" />
-            View Details
-          </Link>
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function StatusBadge({
-  status,
-  isOverdue,
-}: {
-  status: HomeworkStatus;
-  isOverdue: boolean;
-}) {
-  if (isOverdue && status === "published") {
-    return (
-      <Badge variant="error" className="flex items-center gap-1">
-        <Clock className="h-3 w-3" />
-        Overdue
-      </Badge>
-    );
-  }
-
-  const variants: Record<HomeworkStatus, "success" | "warning" | "default"> = {
-    draft: "default",
-    published: "success",
-    closed: "default",
-  };
-
-  return <Badge variant={variants[status]}>{STATUS_LABELS[status]}</Badge>;
 }
 
 function SummaryCard({
@@ -340,14 +341,6 @@ function SummaryCard({
       </CardContent>
     </Card>
   );
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 function HomeworkTabSkeleton() {

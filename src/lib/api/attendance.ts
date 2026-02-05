@@ -7,6 +7,7 @@ import type {
   AttendanceSummary,
   AttendanceHistoryItem,
   AttendanceHistoryParams,
+  StudentAttendanceHistoryResponse,
 } from "@/types/attendance";
 import type { PaginationParams, PaginatedResponse } from "@/types";
 
@@ -20,6 +21,15 @@ export const attendanceKeys = {
   summary: () => [...attendanceKeys.all, "summary"] as const,
   history: (params?: AttendanceHistoryParams) =>
     [...attendanceKeys.all, "history", params] as const,
+  studentHistory: (
+    studentId: string,
+    params?: {
+      startDate?: string;
+      endDate?: string;
+      page?: number;
+      limit?: number;
+    }
+  ) => [...attendanceKeys.all, "student", studentId, params] as const,
 };
 
 /**
@@ -85,6 +95,35 @@ async function fetchAttendanceHistory(
     : "/attendance/history";
 
   return apiClient.get<PaginatedResponse<AttendanceHistoryItem>>(endpoint);
+}
+
+/**
+ * Fetch per-student attendance history (paginated)
+ */
+async function fetchStudentAttendanceHistory(
+  studentId: string,
+  params: {
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {}
+): Promise<StudentAttendanceHistoryResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.startDate) searchParams.set("startDate", params.startDate);
+  if (params.endDate) searchParams.set("endDate", params.endDate);
+  if (params.page != null) searchParams.set("page", String(params.page));
+  if (params.limit != null) searchParams.set("limit", String(params.limit));
+
+  const queryString = searchParams.toString();
+  const endpoint = queryString
+    ? `/attendance/student/${studentId}/history?${queryString}`
+    : `/attendance/student/${studentId}/history`;
+
+  const response = await apiClient.get<{
+    data: StudentAttendanceHistoryResponse;
+  }>(endpoint);
+  return response.data;
 }
 
 /**
@@ -159,5 +198,25 @@ export function useAttendanceHistory(params: AttendanceHistoryParams = {}) {
     queryKey: attendanceKeys.history(params),
     queryFn: () => fetchAttendanceHistory(params),
     staleTime: 60 * 1000, // 1 minute
+  });
+}
+
+/**
+ * Hook to fetch per-student attendance history (paginated)
+ */
+export function useStudentAttendanceHistory(
+  studentId: string | null,
+  params: {
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {}
+) {
+  return useQuery({
+    queryKey: attendanceKeys.studentHistory(studentId || "", params),
+    queryFn: () => fetchStudentAttendanceHistory(studentId!, params),
+    enabled: !!studentId,
+    staleTime: 60 * 1000,
   });
 }

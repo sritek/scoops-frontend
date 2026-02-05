@@ -14,18 +14,13 @@ import {
   Label,
 } from "@/components/ui";
 import {
-  Heart,
   Eye,
-  Ear,
   Activity,
-  Pill,
   Shield,
   AlertTriangle,
-  Stethoscope,
-  Plus,
   Calendar,
 } from "lucide-react";
-import { useStudentHealth, useHealthCheckups, useUpdateStudentHealth } from "@/lib/api";
+import { useStudentHealth, useUpdateStudentHealth } from "@/lib/api";
 import { usePermissions } from "@/lib/hooks";
 import {
   getBloodGroupLabel,
@@ -46,24 +41,20 @@ interface StudentHealthTabProps {
  * - Health profile
  * - Vision/Hearing status
  * - Medical history
- * - Checkup history
  */
 export function StudentHealthTab({ studentId }: StudentHealthTabProps) {
   const { data: healthData, isLoading: healthLoading } = useStudentHealth(studentId);
-  const { data: checkupsData, isLoading: checkupsLoading } = useHealthCheckups(studentId);
   const { mutate: updateHealth, isPending: isUpdating } = useUpdateStudentHealth();
   const { can } = usePermissions();
   const [isEditing, setIsEditing] = useState(false);
 
   const canEdit = can("STUDENT_EDIT");
-  const isLoading = healthLoading || checkupsLoading;
 
-  if (isLoading) {
+  if (healthLoading) {
     return <HealthTabSkeleton />;
   }
 
   const health = healthData?.health;
-  const checkups = checkupsData?.checkups || [];
   const bmi = health ? calculateBMI(health.heightCm, health.weightKg) : null;
 
   return (
@@ -225,91 +216,6 @@ export function StudentHealthTab({ studentId }: StudentHealthTabProps) {
           </CardContent>
         </Card>
       </div>
-
-      {/* Checkup History */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Stethoscope className="h-5 w-5 text-text-muted" />
-            Checkup History
-          </CardTitle>
-          {canEdit && (
-            <Button variant="secondary" size="sm" disabled>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Checkup
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          {checkups.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-surface-elevated">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium text-text-muted">
-                      Date
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-text-muted">
-                      Height / Weight
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-text-muted">
-                      BMI
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-text-muted">
-                      BP / Pulse
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-text-muted">
-                      Conducted By
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle">
-                  {checkups.map((checkup) => (
-                    <tr key={checkup.id} className="hover:bg-surface-hover">
-                      <td className="px-4 py-3">
-                        {formatDate(checkup.checkupDate)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {checkup.heightCm && checkup.weightKg
-                          ? `${checkup.heightCm} cm / ${checkup.weightKg} kg`
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {checkup.bmi ? (
-                          <Badge
-                            variant={
-                              checkup.bmi < 18.5 || checkup.bmi >= 25
-                                ? "warning"
-                                : "success"
-                            }
-                          >
-                            {checkup.bmi}
-                          </Badge>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {checkup.bloodPressure || checkup.pulse
-                          ? `${checkup.bloodPressure || "—"} / ${checkup.pulse || "—"} bpm`
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {checkup.conductedBy || "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-text-muted">
-              <Stethoscope className="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <p>No checkup records available</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Last Checkup Info */}
       {health?.lastCheckupDate && (

@@ -53,6 +53,8 @@ export interface DataTableProps<TData, TValue> {
   showPageSizeSelector?: boolean;
   /** Available page sizes for client-side pagination */
   pageSizeOptions?: number[];
+  /** Show rows per page selector for server-side pagination */
+  showLimitSelector?: boolean;
 }
 
 /**
@@ -95,6 +97,7 @@ export function DataTable<TData, TValue>({
   className,
   showPageSizeSelector = false,
   pageSizeOptions = [10, 20, 30, 50],
+  showLimitSelector = true,
 }: DataTableProps<TData, TValue>) {
   // Client-side pagination state
   const [pagination, setPagination] = React.useState<PaginationState>({
@@ -196,6 +199,7 @@ export function DataTable<TData, TValue>({
             onPageChange={onPageChange}
             onLimitChange={onLimitChange}
             limitOptions={limitOptions}
+            showLimitSelector={showLimitSelector}
           />
         </div>
       ) : paginationMode === "client" ? (
