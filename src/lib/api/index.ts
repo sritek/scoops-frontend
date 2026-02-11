@@ -165,6 +165,8 @@ export {
   useStudentFeeSummary,
   useEMITemplates,
   useCreateEMITemplate,
+  useUpdateEMITemplate,
+  useDeleteEMITemplate,
   usePendingInstallments,
   useStudentInstallments,
   useGenerateInstallments,

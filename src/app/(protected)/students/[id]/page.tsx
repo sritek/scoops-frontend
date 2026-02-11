@@ -222,27 +222,45 @@ export default function StudentDetailPage({
       {/* Tabbed Content */}
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="flex-wrap">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
+          <TabsTrigger
+            value="overview"
+            className="flex items-center gap-2 cursor-pointer"
+          >
             <User className="h-4 w-4" />
             Overview
           </TabsTrigger>
-          <TabsTrigger value="fees" className="flex items-center gap-2">
+          <TabsTrigger
+            value="fees"
+            className="flex items-center gap-2 cursor-pointer"
+          >
             <CreditCard className="h-4 w-4" />
             Fees
           </TabsTrigger>
-          <TabsTrigger value="attendance" className="flex items-center gap-2">
+          <TabsTrigger
+            value="attendance"
+            className="flex items-center gap-2 cursor-pointer"
+          >
             <Calendar className="h-4 w-4" />
             Attendance
           </TabsTrigger>
-          <TabsTrigger value="leave" className="flex items-center gap-2">
+          <TabsTrigger
+            value="leave"
+            className="flex items-center gap-2 cursor-pointer"
+          >
             <CalendarDays className="h-4 w-4" />
             Leave
           </TabsTrigger>
-          <TabsTrigger value="homework" className="flex items-center gap-2">
+          <TabsTrigger
+            value="homework"
+            className="flex items-center gap-2 cursor-pointer"
+          >
             <BookOpen className="h-4 w-4" />
             Homework
           </TabsTrigger>
-          <TabsTrigger value="health" className="flex items-center gap-2">
+          <TabsTrigger
+            value="health"
+            className="flex items-center gap-2 cursor-pointer"
+          >
             <Heart className="h-4 w-4" />
             Health
           </TabsTrigger>

@@ -418,7 +418,7 @@ export interface EMIPlanTemplateApiResponse {
   orgId: string;
   name: string;
   installmentCount: number;
-  splitConfig: string;
+  splitConfig: string | EMISplitConfig[];
   isDefault: boolean;
   isActive: boolean;
   createdAt: string;
@@ -432,6 +432,16 @@ export interface CreateEMIPlanTemplateInput {
   installmentCount: number;
   splitConfig: EMISplitConfig[];
   isDefault?: boolean;
+}
+
+/**
+ * Update EMI template input (all optional)
+ */
+export interface UpdateEMIPlanTemplateInput {
+  name?: string;
+  splitConfig?: EMISplitConfig[];
+  isDefault?: boolean;
+  isActive?: boolean;
 }
 
 /**

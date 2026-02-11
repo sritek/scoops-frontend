@@ -9,11 +9,13 @@ import type {
   FeeInstallment,
   PendingInstallment,
   EMIPlanTemplate,
+  EMISplitConfig,
   CreateFeeComponentInput,
   UpdateFeeComponentInput,
   CreateBatchFeeStructureInput,
   CreateStudentFeeStructureInput,
   CreateEMIPlanTemplateInput,
+  UpdateEMIPlanTemplateInput,
   GenerateInstallmentsInput,
   RecordInstallmentPaymentInput,
   InstallmentStatus,
@@ -402,13 +404,29 @@ export const emiTemplateKeys = {
   detail: (id: string) => [...emiTemplateKeys.all, "detail", id] as const,
 };
 
+function normalizeSplitConfig(
+  raw: string | EMISplitConfig[] | unknown,
+): EMISplitConfig[] {
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      console.warn("EMI template: invalid splitConfig JSON string", raw);
+      return [];
+    }
+  }
+  if (Array.isArray(raw)) return raw;
+  return [];
+}
+
 async function fetchEMITemplates(): Promise<EMIPlanTemplate[]> {
   const response = await apiClient.get<{ data: EMIPlanTemplateApiResponse[] }>(
     "/emi-templates",
   );
   return response.data.map((tmpl) => ({
     ...tmpl,
-    splitConfig: JSON.parse(tmpl.splitConfig),
+    splitConfig: normalizeSplitConfig(tmpl.splitConfig),
   }));
 }
 
@@ -420,6 +438,21 @@ async function createEMITemplate(
     data,
   );
   return response.data;
+}
+
+async function updateEMITemplate(
+  id: string,
+  data: UpdateEMIPlanTemplateInput,
+): Promise<EMIPlanTemplate> {
+  const response = await apiClient.patch<{ data: EMIPlanTemplate }>(
+    `/emi-templates/${id}`,
+    data,
+  );
+  return response.data;
+}
+
+async function deleteEMITemplate(id: string): Promise<{ message: string }> {
+  return apiClient.delete<{ message: string }>(`/emi-templates/${id}`);
 }
 
 export function useEMITemplates() {
@@ -434,6 +467,27 @@ export function useCreateEMITemplate() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createEMITemplate,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: emiTemplateKeys.all });
+    },
+  });
+}
+
+export function useUpdateEMITemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateEMIPlanTemplateInput }) =>
+      updateEMITemplate(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: emiTemplateKeys.all });
+    },
+  });
+}
+
+export function useDeleteEMITemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteEMITemplate,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: emiTemplateKeys.all });
     },

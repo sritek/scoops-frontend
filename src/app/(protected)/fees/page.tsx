@@ -52,6 +52,8 @@ import {
   useDeleteScholarship,
   useEMITemplates,
   useCreateEMITemplate,
+  useUpdateEMITemplate,
+  useDeleteEMITemplate,
   usePendingInstallments,
   useRecordInstallmentPayment,
   useBatches,
@@ -59,7 +61,6 @@ import {
   useBatchFeeStructureByBatch,
   useCreateBatchFeeStructure,
   useUpdateBatchFeeStructure,
-  useDeleteBatchFeeStructure,
   useAllFeeComponents,
   useApplyBatchFeeStructure,
 } from "@/lib/api";
@@ -1737,7 +1738,7 @@ function ScholarshipsTab() {
               onClick={handleConfirmDelete}
               disabled={isDeleting}
             >
-              Confirm
+              {isDeleting ? "Confirming..." : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1847,21 +1848,40 @@ function EMITemplatesTab() {
   const [newName, setNewName] = useState("");
   const [newInstallmentCount, setNewInstallmentCount] = useState("4");
   const [isDefault, setIsDefault] = useState(false);
+  const [editingTemplate, setEditingTemplate] =
+    useState<EMIPlanTemplate | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editIsDefault, setEditIsDefault] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<EMIPlanTemplate | null>(null);
 
   const { data, isLoading } = useEMITemplates();
   const { mutate: createTemplate, isPending: isCreating } =
     useCreateEMITemplate();
+  const { mutate: updateTemplate, isPending: isUpdating } =
+    useUpdateEMITemplate();
+  const { mutate: deleteTemplate, isPending: isDeleting } =
+    useDeleteEMITemplate();
 
   const templates = data ?? [];
 
   const handleCreate = () => {
     if (!newName || !newInstallmentCount) return;
 
-    const count = parseInt(newInstallmentCount);
+    const count = parseInt(newInstallmentCount, 10);
+    const installmentCountExists = templates.some(
+      (t) => t.installmentCount === count,
+    );
+    if (installmentCountExists) {
+      toast.error(
+        "A template with this number of installments already exists.",
+      );
+      return;
+    }
+
+    const trimmedName = newName.trim();
     const percentPerInstallment = Math.floor(100 / count);
     const remainder = 100 - percentPerInstallment * count;
 
-    // Generate split config - equal distribution with remainder in last
     const splitConfig = Array.from({ length: count }, (_, i) => ({
       percent:
         i === count - 1
@@ -1872,21 +1892,78 @@ function EMITemplatesTab() {
 
     createTemplate(
       {
-        name: newName,
+        name: trimmedName,
         installmentCount: count,
         splitConfig,
         isDefault,
       },
       {
         onSuccess: () => {
+          toast.success("EMI template created successfully");
           setShowCreateDialog(false);
           setNewName("");
           setNewInstallmentCount("4");
           setIsDefault(false);
         },
+        onError: (err) => {
+          const message =
+            (err as { message?: string })?.message ??
+            (err instanceof Error ? err.message : null) ??
+            "Failed to create EMI template";
+          toast.error(message);
+        },
       },
     );
   };
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteTemplate(deleteTarget.id, {
+      onSuccess: () => {
+        toast.success("EMI template deleted successfully");
+      },
+      onError: (err) => {
+        const message =
+          (err as { message?: string })?.message ??
+          (err instanceof Error ? err.message : null) ??
+          "Failed to delete EMI template";
+        toast.error(message);
+      },
+      onSettled: () => setDeleteTarget(null),
+    });
+  };
+
+  const handleEditSubmit = () => {
+    if (!editingTemplate) return;
+    const trimmedName = editName.trim();
+    if (!trimmedName) return;
+    updateTemplate(
+      {
+        id: editingTemplate.id,
+        data: { name: trimmedName, isDefault: editIsDefault },
+      },
+      {
+        onSuccess: () => {
+          toast.success("EMI template updated successfully");
+          setEditingTemplate(null);
+        },
+        onError: (err) => {
+          const message =
+            (err as { message?: string })?.message ??
+            (err instanceof Error ? err.message : null) ??
+            "Failed to update EMI template";
+          toast.error(message);
+        },
+      },
+    );
+  };
+
+  useEffect(() => {
+    if (editingTemplate) {
+      setEditName(editingTemplate.name);
+      setEditIsDefault(editingTemplate.isDefault);
+    }
+  }, [editingTemplate]);
 
   if (isLoading) {
     return (
@@ -1927,11 +2004,11 @@ function EMITemplatesTab() {
           {templates.map((tmpl) => (
             <Card
               key={tmpl.id}
-              className={tmpl.isDefault ? "border-primary-500" : ""}
+              className={tmpl.isDefault ? "border-2 border-primary-600" : ""}
             >
               <CardContent className="pt-4">
-                <div className="flex items-start justify-between">
-                  <div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="font-medium">{tmpl.name}</p>
                       {tmpl.isDefault && (
@@ -1960,12 +2037,153 @@ function EMITemplatesTab() {
                       {tmpl.installmentCount > 4 && " ..."}
                     </div>
                   </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {!tmpl.isDefault && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          updateTemplate(
+                            { id: tmpl.id, data: { isDefault: true } },
+                            {
+                              onSuccess: () =>
+                                toast.success(
+                                  "EMI template updated successfully",
+                                ),
+                              onError: (err) => {
+                                const message =
+                                  (err as { message?: string })?.message ??
+                                  (err instanceof Error
+                                    ? err.message
+                                    : null) ??
+                                  "Failed to update EMI template";
+                                toast.error(message);
+                              },
+                            },
+                          )
+                        }
+                        disabled={isUpdating}
+                      >
+                        Set as default
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingTemplate(tmpl)}
+                      disabled={isUpdating}
+                      title="Edit"
+                      aria-label="Edit EMI template"
+                    >
+                      <Pencil className="h-4 w-4 text-text-muted" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteTarget(tmpl)}
+                      disabled={isDeleting}
+                      title="Delete"
+                      aria-label="Delete EMI template"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      {/* Confirm Delete Dialog */}
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete EMI template</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `Are you sure you want to delete "${deleteTarget.name}"?`
+                : "Are you sure you want to delete this EMI template?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteTarget(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Confirming..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog
+        open={!!editingTemplate}
+        onOpenChange={(open) => {
+          if (!open) setEditingTemplate(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit EMI template</DialogTitle>
+            <DialogDescription>
+              Change the template name or set as default
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="editEmiName">Name</Label>
+              <Input
+                id="editEmiName"
+                placeholder="e.g., Quarterly"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="editEmiDefault"
+                checked={editIsDefault}
+                onChange={(e) => setEditIsDefault(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="editEmiDefault" className="text-sm font-normal">
+                Set as default template
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setEditingTemplate(null)}
+              disabled={isUpdating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditSubmit}
+              disabled={!editName.trim() || isUpdating}
+            >
+              {isUpdating ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent>
@@ -2054,6 +2272,8 @@ function BatchFeeStructuresTab() {
 
   // State for session filter - default to current session when available
   const [sessionFilter, setSessionFilter] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   // Set default session filter to current session when sessions load (only once)
   const hasSetDefaultSession = useRef(false);
@@ -2074,10 +2294,6 @@ function BatchFeeStructuresTab() {
   const [editingStructure, setEditingStructure] =
     useState<BatchFeeStructure | null>(null);
 
-  // Delete mutation
-  const { mutate: deleteStructure, isPending: isDeleting } =
-    useDeleteBatchFeeStructure();
-
   // Fetch batch fee structures with session filter
   const { data: structures, isLoading } = useBatchFeeStructures(
     sessionFilter || undefined,
@@ -2095,30 +2311,22 @@ function BatchFeeStructuresTab() {
     });
   }, [structures]);
 
-  // Handle delete
-  const handleDelete = useCallback(
-    (structure: BatchFeeStructure) => {
-      if (
-        window.confirm(
-          `Are you sure you want to delete the fee structure for "${structure.batch.name}"? This action cannot be undone.`,
-        )
-      ) {
-        deleteStructure(structure.id, {
-          onSuccess: () => {
-            toast.success("Fee structure deleted successfully");
-          },
-          onError: (err) => {
-            toast.error(
-              err instanceof Error
-                ? err.message
-                : "Failed to delete fee structure",
-            );
-          },
-        });
-      }
-    },
-    [deleteStructure],
-  );
+  const filteredStructures = useMemo(() => {
+    const term = debouncedSearch.trim().toLowerCase();
+    if (!term) return sortedStructures;
+
+    return sortedStructures.filter((structure) => {
+      const batchName = structure.batch.name?.toLowerCase() ?? "";
+      const structureName = structure.name?.toLowerCase() ?? "";
+      const sessionName = structure.session.name?.toLowerCase() ?? "";
+
+      return (
+        batchName.includes(term) ||
+        structureName.includes(term) ||
+        sessionName.includes(term)
+      );
+    });
+  }, [sortedStructures, debouncedSearch]);
 
   // Check if a structure is from a previous (non-current) session
   const isPreviousSession = useCallback(
@@ -2227,15 +2435,6 @@ function BatchFeeStructuresTab() {
                       <Users className="mr-2 h-4 w-4" />
                       Apply to Students
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => handleDelete(row.original)}
-                      className="text-red-600 focus:text-red-600"
-                      disabled={isDeleting}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>
@@ -2244,7 +2443,7 @@ function BatchFeeStructuresTab() {
         },
       },
     ],
-    [router, isPreviousSession, handleDelete, isDeleting],
+    [router, isPreviousSession],
   );
 
   // Handler to close create/edit dialog
@@ -2257,24 +2456,41 @@ function BatchFeeStructuresTab() {
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Select value={sessionFilter} onValueChange={setSessionFilter}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Select session" />
-          </SelectTrigger>
-          <SelectContent>
-            {sessions.map((session) => (
-              <SelectItem key={session.id} value={session.id}>
-                {session.name}
-                {session.isCurrent && " (Current)"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="relative w-full max-w-xs">
+          <Search
+            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+            aria-hidden="true"
+          />
+          <Input
+            type="search"
+            placeholder="Search by batch or structure name"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+            aria-label="Search batch fee structures"
+          />
+        </div>
 
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Structure
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select value={sessionFilter} onValueChange={setSessionFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select session" />
+            </SelectTrigger>
+            <SelectContent>
+              {sessions.map((session) => (
+                <SelectItem key={session.id} value={session.id}>
+                  {session.name}
+                  {session.isCurrent && " (Current)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Structure
+          </Button>
+        </div>
       </div>
 
       {/* Empty state when no structures exist */}
@@ -2299,7 +2515,7 @@ function BatchFeeStructuresTab() {
         <Card>
           <DataTable
             columns={columns}
-            data={sortedStructures}
+            data={filteredStructures}
             paginationMode="client"
             pageSize={20}
             isLoading={isLoading}
@@ -2472,12 +2688,12 @@ function CreateEditBatchFeeStructureDialog({
   const handleAddLineItem = useCallback(() => {
     const currentItems = lineItems || [];
     setValue("lineItems", [
-      ...currentItems,
       {
         id: `temp-${Date.now()}`,
         feeComponentId: "",
         amount: 0,
       },
+      ...currentItems,
     ]);
   }, [lineItems, setValue]);
 
@@ -2943,7 +3159,7 @@ function ApplyToStudentsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Apply Fee Structure to Students</DialogTitle>
           <DialogDescription>
@@ -2955,7 +3171,7 @@ function ApplyToStudentsDialog({
         <div className="space-y-4 py-4">
           {/* Error message */}
           {error && (
-            <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
+            <div className="flex items-center gap-2 rounded-lg bg-bg-surface p-3 text-sm text-red-600">
               <AlertCircle className="h-4 w-4" />
               {error}
             </div>
@@ -2980,7 +3196,7 @@ function ApplyToStudentsDialog({
             <div className="flex justify-between text-sm">
               <span className="text-text-muted">Components:</span>
               <span className="font-medium">
-                {structure.lineItems?.length ?? 0}
+                {structure._count?.lineItems ?? structure.lineItems?.length ?? 0}
               </span>
             </div>
           </div>

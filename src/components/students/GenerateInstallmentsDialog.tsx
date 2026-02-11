@@ -196,7 +196,7 @@ export function GenerateInstallmentsDialog({
             {selectedTemplate && installmentPreview.length > 0 && (
               <div>
                 <Label>Installment Preview</Label>
-                <div className="mt-2 border rounded-lg divide-y">
+                <div className="mt-2 max-h-64 overflow-y-auto border rounded-lg divide-y">
                   {installmentPreview.map((inst) => (
                     <div
                       key={inst.number}
@@ -224,7 +224,7 @@ export function GenerateInstallmentsDialog({
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="mt-4">
           <Button variant="destructive" onClick={handleClose}>
             Cancel
           </Button>

@@ -13,6 +13,7 @@ import {
   CheckCircle,
   XCircle,
   ClipboardList,
+  Search,
 } from "lucide-react";
 import {
   useExams,
@@ -22,7 +23,7 @@ import {
 } from "@/lib/api/exams";
 import { useBatches } from "@/lib/api/batches";
 import { useAllSubjects } from "@/lib/api/subjects";
-import { usePermissions } from "@/lib/hooks";
+import { usePermissions, useDebounce } from "@/lib/hooks";
 import {
   Button,
   Card,
@@ -64,14 +65,18 @@ export default function ExamsPage() {
   const [batchFilter, setBatchFilter] = useState<string>("__all__");
   const [typeFilter, setTypeFilter] = useState<string>("__all__");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [pageLimit, setPageLimit] = useState(PAGINATION_DEFAULTS.LIMIT);
   const { can } = usePermissions();
 
   const canManageExams = can("ATTENDANCE_MARK"); // Teachers can manage exams
   const canDeleteExams = can("SETTINGS_MANAGE");
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
   const { data, isLoading, error } = useExams({
     page: currentPage,
-    limit: PAGINATION_DEFAULTS.LIMIT,
+    limit: pageLimit,
     batchId: batchFilter !== "__all__" ? batchFilter : undefined,
     type: typeFilter !== "__all__" ? (typeFilter as ExamType) : undefined,
   });
@@ -83,6 +88,23 @@ export default function ExamsPage() {
   const exams = data?.data ?? [];
   const pagination = data?.pagination;
   const batches = batchesData?.data ?? [];
+
+  const filteredExams = useMemo(() => {
+    const term = debouncedSearch.trim().toLowerCase();
+    if (!term) return exams;
+
+    return exams.filter((exam) => {
+      const name = exam.name?.toLowerCase() ?? "";
+      const batchName = exam.batchName?.toLowerCase() ?? "";
+      const subjectName = exam.subjectName?.toLowerCase() ?? "";
+
+      return (
+        name.includes(term) ||
+        batchName.includes(term) ||
+        subjectName.includes(term)
+      );
+    });
+  }, [exams, debouncedSearch]);
 
   const handleTogglePublish = (exam: Exam) => {
     updateExam({
@@ -228,46 +250,68 @@ export default function ExamsPage() {
       <PageHeader canManageExams={canManageExams} onCreateClick={() => setShowCreateDialog(true)} />
 
       {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <Select
-          value={batchFilter}
-          onValueChange={(value) => {
-            setBatchFilter(value);
-            setCurrentPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All batches" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All batches</SelectItem>
-            {batches.map((batch) => (
-              <SelectItem key={batch.id} value={batch.id}>
-                {batch.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {/* Left: search bar */}
+        <div className="relative w-full max-w-xs">
+          <Search
+            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+            aria-hidden="true"
+          />
+          <Input
+            type="search"
+            placeholder="Search exams by name, batch, or subject"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="pl-9"
+            aria-label="Search exams"
+          />
+        </div>
 
-        <Select
-          value={typeFilter}
-          onValueChange={(value) => {
-            setTypeFilter(value);
-            setCurrentPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="All types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All types</SelectItem>
-            {EXAM_TYPES.map((type) => (
-              <SelectItem key={type.value} value={type.value}>
-                {type.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Right: batch & type filters */}
+        <div className="flex items-center gap-3">
+          <Select
+            value={batchFilter}
+            onValueChange={(value) => {
+              setBatchFilter(value);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All batches" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All batches</SelectItem>
+              {batches.map((batch) => (
+                <SelectItem key={batch.id} value={batch.id}>
+                  {batch.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={typeFilter}
+            onValueChange={(value) => {
+              setTypeFilter(value);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All types</SelectItem>
+              {EXAM_TYPES.map((type) => (
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Table */}
@@ -291,12 +335,17 @@ export default function ExamsPage() {
         <Card>
           <DataTable
             columns={columns}
-            data={exams}
+            data={filteredExams}
             paginationMode="server"
             serverPagination={pagination}
             onPageChange={setCurrentPage}
+            onLimitChange={(limit) => {
+              setPageLimit(limit);
+              setCurrentPage(1);
+            }}
             isLoading={isLoading}
-            pageSize={PAGINATION_DEFAULTS.LIMIT}
+            pageSize={pageLimit}
+            limitOptions={[10, 20, 50, 100]}
             emptyMessage="No exams found."
           />
         </Card>
