@@ -22,6 +22,7 @@ import {
   Spinner,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -41,7 +42,9 @@ import {
   useAllPeriodTemplates,
   useDefaultPeriodTemplate,
 } from "@/lib/api/schedule";
+import { useOrganization } from "@/lib/api/settings";
 import { usePermissions } from "@/lib/hooks";
+import { cn } from "@/lib/utils/cn";
 import { AccessDeniedPage } from "@/components/ui";
 import type {
   Period,
@@ -72,9 +75,14 @@ export default function ScheduleManagementPage() {
     period: number;
   } | null>(null);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [showClearDialog, setShowClearDialog] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    null
+  );
 
   // Fetch data
   const { data: batchData, isLoading: batchLoading } = useBatch(batchId);
+  const { data: orgData } = useOrganization();
   const {
     data: schedule,
     isLoading: scheduleLoading,
@@ -82,6 +90,8 @@ export default function ScheduleManagementPage() {
   } = useBatchSchedule(batchId);
   const { data: templates } = useAllPeriodTemplates();
   const { data: defaultTemplate } = useDefaultPeriodTemplate();
+
+  const organization = orgData?.data;
 
   // Mutations
   const { mutate: updatePeriod, isPending: isUpdatingPeriod } =
@@ -189,21 +199,14 @@ export default function ScheduleManagementPage() {
     );
   };
 
-  // Clear all periods (reset schedule)
-  const handleClearSchedule = () => {
-    if (
-      !confirm(
-        "Are you sure you want to clear all periods? This cannot be undone."
-      )
-    ) {
-      return;
-    }
-
+  // Clear all periods (reset schedule) after user confirms in dialog
+  const handleConfirmClearSchedule = () => {
     setSchedule(
       { batchId, periods: [] },
       {
         onSuccess: () => {
           toast.success("Schedule cleared");
+          setShowClearDialog(false);
         },
         onError: () => {
           toast.error("Failed to clear schedule");
@@ -231,15 +234,23 @@ export default function ScheduleManagementPage() {
     );
   }
 
+  const scheduleDateLabel = batch
+    ? new Date(batch.updatedAt).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "";
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      {/* Screen-only: full schedule management UI */}
+      <div className="space-y-6 print:hidden">
+        {/* Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={`/batches/${batchId}`}>
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
+          <Button variant="ghost" size="sm" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-xl font-semibold text-text-primary">
@@ -285,7 +296,10 @@ export default function ScheduleManagementPage() {
           {/* Template dialog */}
           <Dialog
             open={showTemplateDialog}
-            onOpenChange={setShowTemplateDialog}
+            onOpenChange={(open) => {
+              setShowTemplateDialog(open);
+              if (!open) setSelectedTemplateId(null);
+            }}
           >
             <DialogTrigger asChild>
               <Button variant="secondary">
@@ -306,9 +320,16 @@ export default function ScheduleManagementPage() {
                   {templates?.map((template) => (
                     <button
                       key={template.id}
-                      onClick={() => handleInitSchedule(template.id)}
+                      type="button"
+                      onClick={() => setSelectedTemplateId(template.id)}
                       disabled={isInitializing}
-                      className="w-full text-left p-3 rounded-lg border border-border-subtle hover:border-primary-600 hover:bg-primary-100/20 transition-all"
+                      aria-selected={selectedTemplateId === template.id}
+                      className={cn(
+                        "w-full text-left p-3 rounded-lg border transition-all cursor-pointer",
+                        selectedTemplateId === template.id
+                          ? "border-primary-600 bg-primary-100/30 ring-1 ring-primary-600/50"
+                          : "border-border-subtle hover:border-primary-600 hover:bg-primary-100/20"
+                      )}
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium">{template.name}</span>
@@ -326,6 +347,58 @@ export default function ScheduleManagementPage() {
                   ))}
                 </div>
               </div>
+              <DialogFooter className="gap-2 pt-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setShowTemplateDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  disabled={selectedTemplateId == null || isInitializing}
+                  onClick={() => {
+                    if (selectedTemplateId) handleInitSchedule(selectedTemplateId);
+                  }}
+                >
+                  {isInitializing ? "Applying..." : "Confirm"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Clear schedule confirmation dialog */}
+          <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Clear schedule?</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 pt-2">
+                <p className="text-sm text-text-muted">
+                  Are you sure you want to clear all periods? This cannot be
+                  undone.
+                </p>
+              </div>
+              <div className="mt-6 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setShowClearDialog(false)}
+                  disabled={isSettingSchedule}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirmClearSchedule}
+                  disabled={isSettingSchedule}
+                  className="bg-error text-white hover:bg-error/90"
+                >
+                  Clear all periods
+                </Button>
+              </div>
             </DialogContent>
           </Dialog>
 
@@ -333,7 +406,7 @@ export default function ScheduleManagementPage() {
           {schedule && schedule.length > 0 && (
             <Button
               variant="ghost"
-              onClick={handleClearSchedule}
+              onClick={() => setShowClearDialog(true)}
               disabled={isSettingSchedule}
               className="text-error hover:text-error hover:bg-error/10"
             >
@@ -342,7 +415,7 @@ export default function ScheduleManagementPage() {
             </Button>
           )}
         </div>
-      </div>
+        </div>
 
       {/* Main content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -423,6 +496,32 @@ export default function ScheduleManagementPage() {
             </Card>
           )}
         </div>
+      </div>
+      </div>
+
+      {/* Print-only: single-page schedule with header */}
+      <div className="schedule-print-view hidden print:block">
+        <div className="text-center mb-4">
+          <h1 className="text-lg font-semibold text-black">
+            {organization?.name ?? "School"}
+          </h1>
+        </div>
+        <div className="flex justify-between items-center mb-4 px-8 text-sm text-black">
+          <span>{batch.name}</span>
+          <span>{scheduleDateLabel}</span>
+        </div>
+        {schedule && schedule.length > 0 ? (
+          <WeeklyScheduleGrid
+            periods={schedule}
+            templateSlots={templateSlots}
+            activeDays={activeDays}
+            editable={false}
+            showTeacher
+            showBreaks
+          />
+        ) : (
+          <p className="text-center text-black py-8">No schedule configured.</p>
+        )}
       </div>
     </div>
   );

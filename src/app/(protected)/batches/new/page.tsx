@@ -89,6 +89,7 @@ export default function CreateBatchPage() {
         </CardHeader>
         <CardContent>
           <BatchForm
+            mode="create"
             onSubmit={handleSubmit}
             isSubmitting={isPending}
             submitLabel="Create Batch"

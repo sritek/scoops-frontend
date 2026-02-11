@@ -18,8 +18,10 @@ import {
   Filter,
   Lock,
   CalendarDays,
+  RotateCcw,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useBatches } from "@/lib/api/batches";
 import {
   useAttendance,
@@ -27,6 +29,7 @@ import {
   useAttendanceSummary,
   useAttendanceHistory,
   attendanceKeys,
+  fetchAttendance,
 } from "@/lib/api/attendance";
 import {
   Button,
@@ -42,6 +45,7 @@ import {
   SelectContent,
   SelectItem,
   Label,
+  Input,
   Pagination,
   Skeleton,
   Badge,
@@ -51,7 +55,6 @@ import {
   DialogTitle,
   DialogDescription,
   Avatar,
-  LoadingOverlay,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type {
@@ -82,6 +85,36 @@ function formatDate(dateString: string): string {
     month: "short",
     day: "numeric",
   });
+}
+
+/**
+ * Format dashboard date (day name + date) for the Attendance Dashboard chip
+ */
+function formatDashboardDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/**
+ * Small chip showing which date the dashboard metrics refer to
+ */
+function AttendanceDateChip({ date }: { date: string }) {
+  return (
+    <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/5 px-3 py-1.5 text-xs">
+      <span className="text-text-muted">Today</span>
+      <span className="text-muted-foreground/70" aria-hidden>
+        ·
+      </span>
+      <span className="font-medium text-text-primary">
+        {formatDashboardDate(date)}
+      </span>
+    </div>
+  );
 }
 
 /**
@@ -268,6 +301,16 @@ function DashboardTab({
 
   return (
     <div className="space-y-6">
+      {/* Dashboard header with date chip */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-text-primary">
+          Attendance Dashboard
+        </h2>
+        {summary.date && (
+          <AttendanceDateChip date={summary.date} />
+        )}
+      </div>
+
       {/* Stats Overview */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Attendance Rate Card */}
@@ -312,8 +355,8 @@ function DashboardTab({
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
-                <Check className="h-6 w-6 text-success" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10">
+                <Check className="h-5 w-5 text-success" />
               </div>
               <div>
                 <p className="text-sm text-text-muted">Present Today</p>
@@ -329,8 +372,8 @@ function DashboardTab({
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900">
-                <X className="h-6 w-6 text-error" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-error/10">
+                <X className="h-5 w-5 text-error" />
               </div>
               <div>
                 <p className="text-sm text-text-muted">Absent Today</p>
@@ -588,15 +631,15 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
   );
 
   // Stats
-  const allMarkedOnPage =
-    records.length > 0 && records.every((r) => r.status !== null);
   const presentCount = records.filter((r) => r.status === "present").length;
   const absentCount = records.filter((r) => r.status === "absent").length;
   const unmarkedCount = records.filter((r) => r.status === null).length;
+  const canSave =
+    !!selectedBatchId && !!attendance && records.length > 0 && !attendanceLoading;
 
   // Handlers
   const handleStatusChange = useCallback(
-    (studentId: string, status: AttendanceStatus) => {
+    (studentId: string, status: AttendanceStatus | null) => {
       setLocalStatus((prev) => ({ ...prev, [studentId]: status }));
     },
     []
@@ -620,20 +663,40 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
     setLocalStatus((prev) => ({ ...prev, ...updates }));
   }, [records]);
 
-  const handleSave = () => {
-    if (!selectedBatchId || !allMarkedOnPage) return;
+  const handleSave = async () => {
+    if (!selectedBatchId || !attendance || records.length === 0) return;
 
-    const attendanceRecords = records.map((r) => ({
-      studentId: r.studentId,
-      status: r.status as AttendanceStatus,
-    }));
+    let attendanceRecords: { studentId: string; status: AttendanceStatus }[];
+    let studentIdsToClear: Set<string>;
+
+    if (pagination && pagination.totalPages > 1) {
+      // Full-session payload: fetch all and merge with local status
+      const fullAttendance = await fetchAttendance(selectedBatchId, todayDate, {
+        page: 1,
+        limit: pagination.total,
+      });
+      const fullMerged = fullAttendance.records.map((r) => ({
+        ...r,
+        status:
+          localStatus[r.studentId] !== undefined
+            ? localStatus[r.studentId]
+            : (r.status as AttendanceStatus | null),
+      }));
+      attendanceRecords = fullMerged
+        .filter((r): r is typeof r & { status: AttendanceStatus } => r.status !== null)
+        .map((r) => ({ studentId: r.studentId, status: r.status }));
+      studentIdsToClear = new Set(fullMerged.map((r) => r.studentId));
+    } else {
+      attendanceRecords = records
+        .filter((r): r is typeof r & { status: AttendanceStatus } => r.status !== null)
+        .map((r) => ({ studentId: r.studentId, status: r.status }));
+      studentIdsToClear = new Set(records.map((r) => r.studentId));
+    }
 
     saveAttendance(
       { batchId: selectedBatchId, date: todayDate, records: attendanceRecords },
       {
         onSuccess: () => {
-          // Optimistically update cache with correct query key BEFORE clearing localStatus
-          // This prevents UI flicker when localStatus is cleared
           queryClient.setQueryData<AttendanceResponse>(
             attendanceKeys.byBatchDate(selectedBatchId, todayDate, {
               page: currentPage,
@@ -657,17 +720,25 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
             }
           );
 
-          // Now safe to clear local status
-          const savedStudentIds = new Set(records.map((r) => r.studentId));
           setLocalStatus((prev) => {
             const next = { ...prev };
-            for (const id of savedStudentIds) {
+            for (const id of studentIdsToClear) {
               delete next[id];
             }
             return next;
           });
-          setSuccessMessage(`Attendance saved for ${records.length} students`);
+          setSuccessMessage(`Attendance saved for ${attendanceRecords.length} students`);
           setTimeout(() => setSuccessMessage(null), 3000);
+        },
+        onError: (error: Error) => {
+          toast.error(
+            error instanceof Error ? error.message : "Failed to save attendance"
+          );
+          if (selectedBatchId && todayDate) {
+            queryClient.invalidateQueries({
+              queryKey: attendanceKeys.byBatchDate(selectedBatchId, todayDate),
+            });
+          }
         },
       }
     );
@@ -685,9 +756,6 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
 
   return (
     <div className="relative space-y-6">
-      {/* Loading Overlay */}
-      <LoadingOverlay isLoading={isSaving} message="Saving attendance..." />
-
       {/* Success Toast */}
       {successMessage && (
         <div className="fixed right-4 top-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -903,19 +971,17 @@ function MarkAttendanceTab({ batchId }: { batchId: string | null }) {
               <div className="sticky bottom-4 pt-4">
                 <Button
                   onClick={handleSave}
-                  disabled={!allMarkedOnPage || isSaving}
+                  disabled={!canSave || isSaving}
                   className="h-14 w-full text-base"
                   isLoading={isSaving}
                 >
                   {isSaving ? (
                     <>Saving...</>
-                  ) : allMarkedOnPage ? (
+                  ) : (
                     <>
                       <Check className="mr-2 h-5 w-5" />
                       Save Attendance
                     </>
-                  ) : (
-                    `Mark all students (${unmarkedCount} remaining)`
                   )}
                 </Button>
               </div>
@@ -977,7 +1043,7 @@ function StudentAttendanceCard({
   status: AttendanceStatus | null;
   onLeave?: boolean;
   leaveInfo?: StudentLeaveInfo | null;
-  onStatusChange: (status: AttendanceStatus) => void;
+  onStatusChange: (status: AttendanceStatus | null) => void;
 }) {
   const studentId = studentName.replace(/\s+/g, "-").toLowerCase();
 
@@ -988,10 +1054,10 @@ function StudentAttendanceCard({
         onLeave && "border-orange-300 bg-orange-50/50 dark:bg-orange-950/20",
         !onLeave &&
           status === "present" &&
-          "border-success/50 bg-green-50/50 dark:bg-green-950/20",
+          "border-success/50 bg-success/10",
         !onLeave &&
           status === "absent" &&
-          "border-error/50 bg-red-50/50 dark:bg-red-950/20"
+          "border-error/50 bg-error/10"
       )}
     >
       <CardContent className="py-4">
@@ -1024,7 +1090,7 @@ function StudentAttendanceCard({
 
           {/* Toggle Buttons */}
           <div
-            className="flex gap-2"
+            className="flex flex-wrap gap-2"
             role="group"
             aria-labelledby={`student-${studentId}`}
           >
@@ -1061,6 +1127,22 @@ function StudentAttendanceCard({
               <X className="h-4 w-4" aria-hidden="true" />
               <span>Absent</span>
             </button>
+
+            {status !== null && (
+              <button
+                type="button"
+                onClick={() => onStatusChange(null)}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-2 sm:flex-none",
+                  "h-11 rounded-lg px-5 font-medium transition-all",
+                  "focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",
+                  "border border-border-subtle bg-bg-surface text-text-muted hover:border-primary-600 hover:text-primary-600"
+                )}
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                <span>Unmark</span>
+              </button>
+            )}
           </div>
         </div>
       </CardContent>
@@ -1078,9 +1160,13 @@ function HistoryTab() {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewingSession, setViewingSession] =
     useState<AttendanceHistoryItem | null>(null);
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
+  const [customError, setCustomError] = useState<string | null>(null);
 
-  // Get date range from preset
-  const { startDate, endDate } = getDateRange(datePreset);
+  // Applied date range used for queries (decoupled from in-progress custom edits)
+  const [appliedRange, setAppliedRange] = useState(() => getDateRange("7days"));
+  const { startDate, endDate } = appliedRange;
 
   // Fetch batches for filter
   const { data: batchesData } = useBatches();
@@ -1118,7 +1204,8 @@ function HistoryTab() {
 
       {/* Filters */}
       <Card>
-        <CardContent className="flex flex-wrap items-end gap-4 pt-6">
+        <CardContent className="space-y-4 pt-6">
+          {/* Filters header pinned to top of card */}
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-text-muted" />
             <span className="text-sm font-medium text-text-primary">
@@ -1126,49 +1213,119 @@ function HistoryTab() {
             </span>
           </div>
 
-          {/* Date Range */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Date Range</Label>
-            <Select
-              value={datePreset}
-              onValueChange={(value) => {
-                setDatePreset(value);
-                handleFilterChange();
-              }}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7days">Last 7 days</SelectItem>
-                <SelectItem value="30days">Last 30 days</SelectItem>
-                <SelectItem value="90days">Last 90 days</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Filters row */}
+          <div className="flex flex-wrap items-end gap-4">
+            {/* Date Range */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Date Range</Label>
+              <Select
+                value={datePreset}
+                onValueChange={(value) => {
+                  setDatePreset(value);
+                  if (value === "custom") {
+                    const defaultRange = getDateRange("7days");
+                    setCustomFrom(defaultRange.startDate);
+                    setCustomTo(defaultRange.endDate);
+                    setCustomError(null);
+                    // Do not change appliedRange yet; wait for Apply click
+                    handleFilterChange();
+                  } else {
+                    const newRange = getDateRange(value);
+                    setAppliedRange(newRange);
+                    setCustomError(null);
+                    handleFilterChange();
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7days">Last 7 days</SelectItem>
+                  <SelectItem value="30days">Last 30 days</SelectItem>
+                  <SelectItem value="90days">Last 90 days</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Batch Filter */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Batch</Label>
-            <Select
-              value={selectedBatchId || "all"}
-              onValueChange={(value) => {
-                setSelectedBatchId(value === "all" ? "" : value);
-                handleFilterChange();
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All Batches" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Batches</SelectItem>
-                {batches.map((batch) => (
-                  <SelectItem key={batch.id} value={batch.id}>
-                    {batch.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Custom date range (shown to the right of Date Range when selected) */}
+            {datePreset === "custom" && (
+              <div className="mt-0 flex flex-wrap items-end gap-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs" htmlFor="history-from">
+                    From
+                  </Label>
+                  <Input
+                    id="history-from"
+                    type="date"
+                    value={customFrom}
+                    max={customTo || undefined}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="h-8 w-[140px] text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs" htmlFor="history-to">
+                    To
+                  </Label>
+                  <Input
+                    id="history-to"
+                    type="date"
+                    value={customTo}
+                    min={customFrom || undefined}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="h-8 w-[140px] text-xs"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="mt-5"
+                  onClick={() => {
+                    if (!customFrom || !customTo || customFrom > customTo) {
+                      setCustomError("From date must be before To date");
+                      return;
+                    }
+                    setCustomError(null);
+                    setAppliedRange({
+                      startDate: customFrom,
+                      endDate: customTo,
+                    });
+                    handleFilterChange();
+                  }}
+                >
+                  Apply
+                </Button>
+                {customError && (
+                  <p className="w-full text-xs text-error">{customError}</p>
+                )}
+              </div>
+            )}
+
+            {/* Batch Filter */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Batch</Label>
+              <Select
+                value={selectedBatchId || "all"}
+                onValueChange={(value) => {
+                  setSelectedBatchId(value === "all" ? "" : value);
+                  handleFilterChange();
+                }}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Batches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Batches</SelectItem>
+                  {batches.map((batch) => (
+                    <SelectItem key={batch.id} value={batch.id}>
+                      {batch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -1308,11 +1465,11 @@ function HistoryCard({
             </div>
 
             {/* Stats Pills */}
-            <div className="hidden items-center gap-2 text-sm lg:flex">
-              <span className="rounded-full bg-green-100 px-2 py-0.5 text-success dark:bg-green-900">
+            <div className="hidden items-center gap-2 lg:flex">
+              <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs text-success">
                 {stats.present} P
               </span>
-              <span className="rounded-full bg-red-100 px-2 py-0.5 text-error dark:bg-red-900">
+              <span className="rounded-full bg-error/10 px-2 py-0.5 text-xs text-error">
                 {stats.absent} A
               </span>
             </div>

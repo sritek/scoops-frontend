@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
+import { feesKeys } from "./fees";
 import type {
   FeeComponent,
   BatchFeeStructure,
@@ -446,6 +447,7 @@ export function useCreateEMITemplate() {
 export interface PendingInstallmentsParams extends PaginationParams {
   status?: InstallmentStatus;
   batchId?: string;
+  search?: string;
 }
 
 export const installmentsKeys = {
@@ -464,6 +466,7 @@ async function fetchPendingInstallments(
   if (params.limit) searchParams.set("limit", String(params.limit));
   if (params.status) searchParams.set("status", params.status);
   if (params.batchId) searchParams.set("batchId", params.batchId);
+   if (params.search) searchParams.set("search", params.search);
 
   const queryString = searchParams.toString();
   const endpoint = queryString
@@ -568,6 +571,7 @@ export function useRecordInstallmentPayment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: installmentsKeys.all });
       queryClient.invalidateQueries({ queryKey: studentFeeStructureKeys.all });
+      queryClient.invalidateQueries({ queryKey: feesKeys.receipts.all });
     },
   });
 }

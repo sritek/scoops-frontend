@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+  type ChangeEvent,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -186,7 +193,7 @@ export default function FeesPage() {
       <div className="flex gap-2 border-b border-border-subtle">
         <button
           onClick={() => handleTabChange("pending")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
             activeTab === "pending"
               ? "border-primary-600 text-primary-600"
               : "border-transparent text-text-muted hover:text-text-primary"
@@ -197,7 +204,7 @@ export default function FeesPage() {
         </button>
         <button
           onClick={() => handleTabChange("receipts")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
             activeTab === "receipts"
               ? "border-primary-600 text-primary-600"
               : "border-transparent text-text-muted hover:text-text-primary"
@@ -209,7 +216,7 @@ export default function FeesPage() {
         {canManageFees && (
           <button
             onClick={() => handleTabChange("links")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
               activeTab === "links"
                 ? "border-primary-600 text-primary-600"
                 : "border-transparent text-text-muted hover:text-text-primary"
@@ -226,7 +233,7 @@ export default function FeesPage() {
           <>
             <button
               onClick={() => handleTabChange("components")}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
                 activeTab === "components"
                   ? "border-primary-600 text-primary-600"
                   : "border-transparent text-text-muted hover:text-text-primary"
@@ -240,7 +247,7 @@ export default function FeesPage() {
             </button>
             <button
               onClick={() => handleTabChange("scholarships")}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
                 activeTab === "scholarships"
                   ? "border-primary-600 text-primary-600"
                   : "border-transparent text-text-muted hover:text-text-primary"
@@ -251,7 +258,7 @@ export default function FeesPage() {
             </button>
             <button
               onClick={() => handleTabChange("emi-templates")}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
                 activeTab === "emi-templates"
                   ? "border-primary-600 text-primary-600"
                   : "border-transparent text-text-muted hover:text-text-primary"
@@ -265,7 +272,7 @@ export default function FeesPage() {
             </button>
             <button
               onClick={() => handleTabChange("batch-structures")}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
                 activeTab === "batch-structures"
                   ? "border-primary-600 text-primary-600"
                   : "border-transparent text-text-muted hover:text-text-primary"
@@ -332,16 +339,22 @@ function PendingInstallmentsTab({
     InstallmentStatus | "__all__"
   >("__all__");
   const [batchFilter, setBatchFilter] = useState<string>("__all__");
+  const [pageSize, setPageSize] = useState(PAGINATION_DEFAULTS.LIMIT);
   const [creatingLinkFor, setCreatingLinkFor] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [amountError, setAmountError] = useState<string | null>(null);
+
+  const debouncedSearch = useDebounce(searchQuery, 500);
 
   const { data: batchesData } = useBatches({ limit: 100 });
   const batches = batchesData?.data ?? [];
 
   const { data, isLoading, error } = usePendingInstallments({
     page: currentPage,
-    limit: PAGINATION_DEFAULTS.LIMIT,
+    limit: pageSize,
     status: statusFilter !== "__all__" ? statusFilter : undefined,
     batchId: batchFilter !== "__all__" ? batchFilter : undefined,
+    search: debouncedSearch || undefined,
   });
 
   const { mutate: recordPayment, isPending: isRecording } =
@@ -352,14 +365,83 @@ function PendingInstallmentsTab({
   const installments = data?.data ?? [];
   const pagination = data?.pagination;
 
+  const resetPaymentState = () => {
+    setSelectedInstallment(null);
+    setPaymentAmount("");
+    setPaymentMode("cash");
+    setTransactionRef("");
+    setRemarks("");
+    setAmountError(null);
+  };
+
+  const handleAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+
+    if (value === "") {
+      setPaymentAmount("");
+      setAmountError(null);
+      return;
+    }
+
+    // Normalize: remove commas and non-numeric/non-dot characters
+    value = value.replace(/,/g, "");
+    value = value.replace(/[^0-9.]/g, "");
+
+    // Prevent multiple dots
+    const parts = value.split(".");
+    if (parts.length > 2) {
+      value = parts[0] + "." + parts.slice(1).join("");
+    }
+
+    setPaymentAmount(value);
+
+    // Live validate against pending amount as user types
+    if (selectedInstallment) {
+      const amount = parseFloat(value);
+      const pending = selectedInstallment.pendingAmount;
+
+      if (!Number.isNaN(amount) && amount > pending) {
+        setAmountError(
+          `Amount cannot exceed pending ${formatCurrency(pending)}`,
+        );
+      } else {
+        setAmountError(null);
+      }
+    } else {
+      setAmountError(null);
+    }
+  };
+
   const handleRecordPayment = () => {
-    if (!selectedInstallment || !paymentAmount) return;
+    if (!selectedInstallment) return;
+
+    const raw = paymentAmount.trim();
+    if (!raw) {
+      setAmountError("Enter a valid amount greater than 0.");
+      return;
+    }
+
+    const amount = parseFloat(raw);
+    if (Number.isNaN(amount) || amount <= 0) {
+      setAmountError("Enter a valid amount greater than 0.");
+      return;
+    }
+
+    const pending = selectedInstallment.pendingAmount;
+    if (amount > pending) {
+      setAmountError(
+        `Amount cannot exceed pending ${formatCurrency(pending)}`,
+      );
+      return;
+    }
+
+    setAmountError(null);
 
     recordPayment(
       {
         installmentId: selectedInstallment.id,
         data: {
-          amount: parseFloat(paymentAmount),
+          amount,
           paymentMode,
           transactionRef: transactionRef || undefined,
           remarks: remarks || undefined,
@@ -367,11 +449,14 @@ function PendingInstallmentsTab({
       },
       {
         onSuccess: () => {
-          setSelectedInstallment(null);
-          setPaymentAmount("");
-          setPaymentMode("cash");
-          setTransactionRef("");
-          setRemarks("");
+          resetPaymentState();
+        },
+        onError: (err: unknown) => {
+          const message =
+            (err as { message?: string })?.message ??
+            (err instanceof Error ? err.message : null) ??
+            "Failed to record payment";
+          toast.error(message);
         },
       },
     );
@@ -516,6 +601,24 @@ function PendingInstallmentsTab({
     <>
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center mb-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search
+            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+            aria-hidden="true"
+          />
+          <Input
+            type="search"
+            placeholder="Search by student name..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="pl-9"
+            aria-label="Search pending installments"
+          />
+        </div>
+
         <Select
           value={statusFilter}
           onValueChange={(value) => {
@@ -532,6 +635,7 @@ function PendingInstallmentsTab({
             <SelectItem value="due">Due</SelectItem>
             <SelectItem value="partial">Partial</SelectItem>
             <SelectItem value="upcoming">Upcoming</SelectItem>
+            <SelectItem value="paid">Paid</SelectItem>
           </SelectContent>
         </Select>
 
@@ -559,7 +663,8 @@ function PendingInstallmentsTab({
       {!isLoading &&
       installments.length === 0 &&
       statusFilter === "__all__" &&
-      batchFilter === "__all__" ? (
+      batchFilter === "__all__" &&
+      !searchQuery ? (
         <Card>
           <EmptyState
             icon={CheckCircle}
@@ -572,13 +677,15 @@ function PendingInstallmentsTab({
           <EmptyState
             icon={Clock}
             title="No installments found"
-            description="Try adjusting your filters"
+            description="Try adjusting your search or filters"
             action={
               <Button
                 variant="secondary"
                 onClick={() => {
                   setStatusFilter("__all__");
                   setBatchFilter("__all__");
+                  setSearchQuery("");
+                  setCurrentPage(1);
                 }}
               >
                 Clear filters
@@ -595,7 +702,12 @@ function PendingInstallmentsTab({
             serverPagination={pagination}
             onPageChange={setCurrentPage}
             isLoading={isLoading}
-            pageSize={PAGINATION_DEFAULTS.LIMIT}
+            pageSize={pageSize}
+            onLimitChange={(limit) => {
+              setPageSize(limit);
+              setCurrentPage(1);
+            }}
+            limitOptions={[10, 20, 50, 100]}
             emptyMessage="No pending installments found."
           />
         </Card>
@@ -604,7 +716,11 @@ function PendingInstallmentsTab({
       {/* Record Payment Dialog */}
       <Dialog
         open={!!selectedInstallment}
-        onOpenChange={() => setSelectedInstallment(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            resetPaymentState();
+          }
+        }}
       >
         <DialogContent>
           <DialogHeader>
@@ -637,12 +753,15 @@ function PendingInstallmentsTab({
               <Label htmlFor="amount">Payment Amount</Label>
               <Input
                 id="amount"
-                type="number"
+                type="text"
+                inputMode="decimal"
                 placeholder="Enter amount"
                 value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-                max={selectedInstallment?.pendingAmount}
+                onChange={handleAmountChange}
               />
+              {amountError && (
+                <p className="mt-1 text-xs text-error">{amountError}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -688,7 +807,7 @@ function PendingInstallmentsTab({
           <DialogFooter>
             <Button
               variant="secondary"
-              onClick={() => setSelectedInstallment(null)}
+              onClick={resetPaymentState}
             >
               Cancel
             </Button>
@@ -740,14 +859,25 @@ function ReceiptsTab({
     [setCurrentPage],
   );
 
-  const handleDownloadPDF = async (receiptId: string) => {
-    setIsDownloading(receiptId);
+  const handleDownloadPDF = async (receipt: ReceiptType) => {
+    setIsDownloading(receipt.id);
     try {
-      const blob = await downloadReceiptPDF(receiptId);
+      const blob = await downloadReceiptPDF(receipt.id);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `receipt-${receiptId}.pdf`;
+      // Build a friendly file name: receipt_student-name_YYYY-MM-DD.pdf
+      const safeStudentName = receipt.student.fullName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      const date = new Date(receipt.generatedAt);
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      const datePart = `${y}-${m}-${d}`;
+
+      a.download = `receipt_${safeStudentName}_${datePart}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -825,7 +955,7 @@ function ReceiptsTab({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => handleDownloadPDF(row.original.id)}
+            onClick={() => handleDownloadPDF(row.original)}
             disabled={isDownloading === row.original.id}
           >
             <Download className="h-4 w-4" />
@@ -1099,11 +1229,11 @@ function PaymentLinksTab({
   return (
     <div className="space-y-4">
       {/* Info Banner */}
-      <div className="flex items-start gap-3 rounded-lg bg-blue-50 p-4 text-sm text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-        <LinkIcon className="h-5 w-5 mt-0.5 flex-shrink-0" />
+      <div className="flex items-start gap-3 rounded-lg border border-border-subtle bg-bg-app p-4 text-sm text-text-primary">
+        <LinkIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-text-muted" />
         <div>
           <p className="font-medium">Payment Links</p>
-          <p className="mt-1 text-xs opacity-90">
+          <p className="mt-1 text-xs text-text-muted">
             Create payment links from the Pending Fees tab by clicking the link
             icon on any fee entry. Links can be shared with parents for online
             payment via Razorpay.
@@ -1208,6 +1338,7 @@ function FeeComponentsTab() {
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState("tuition");
   const [newDescription, setNewDescription] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<FeeComponent | null>(null);
 
   const { data, isLoading } = useFeeComponents({ limit: 50 });
   const { mutate: createComponent, isPending: isCreating } =
@@ -1227,13 +1358,41 @@ function FeeComponentsTab() {
       },
       {
         onSuccess: () => {
+          toast.success("Fee component created successfully");
           setShowCreateDialog(false);
           setNewName("");
           setNewType("tuition");
           setNewDescription("");
         },
+        onError: (error) => {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Failed to create fee component",
+          );
+        },
       },
     );
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+
+    deleteComponent(deleteTarget.id, {
+      onSuccess: () => {
+        toast.success("Fee component deactivated successfully");
+      },
+      onError: (error) => {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to deactivate fee component",
+        );
+      },
+      onSettled: () => {
+        setDeleteTarget(null);
+      },
+    });
   };
 
   if (isLoading) {
@@ -1290,8 +1449,10 @@ function FeeComponentsTab() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => deleteComponent(comp.id)}
+                    onClick={() => setDeleteTarget(comp)}
                     disabled={isDeleting}
+                    title="Deactivate"
+                    aria-label="Deactivate fee component"
                   >
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
@@ -1301,6 +1462,41 @@ function FeeComponentsTab() {
           ))}
         </div>
       )}
+
+      {/* Confirm Deactivate Dialog */}
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate fee component</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `Are you sure you want to deactivate "${deleteTarget.name}"?`
+                : "Are you sure you want to deactivate this fee component?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteTarget(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Confirming..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent>
@@ -1378,6 +1574,7 @@ function ScholarshipsTab() {
   const [newBasis, setNewBasis] = useState("merit");
   const [newValue, setNewValue] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Scholarship | null>(null);
 
   const { data, isLoading } = useScholarships({ limit: 50 });
   const { mutate: createScholarship, isPending: isCreating } =
@@ -1399,6 +1596,7 @@ function ScholarshipsTab() {
       },
       {
         onSuccess: () => {
+          toast.success("Scholarship created successfully");
           setShowCreateDialog(false);
           setNewName("");
           setNewType("percentage");
@@ -1406,8 +1604,35 @@ function ScholarshipsTab() {
           setNewValue("");
           setNewDescription("");
         },
+        onError: (error) => {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Failed to create scholarship",
+          );
+        },
       },
     );
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+
+    deleteScholarship(deleteTarget.id, {
+      onSuccess: () => {
+        toast.success("Scholarship deleted successfully");
+      },
+      onError: (error) => {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to delete scholarship",
+        );
+      },
+      onSettled: () => {
+        setDeleteTarget(null);
+      },
+    });
   };
 
   if (isLoading) {
@@ -1471,7 +1696,7 @@ function ScholarshipsTab() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => deleteScholarship(sch.id)}
+                    onClick={() => setDeleteTarget(sch)}
                     disabled={isDeleting}
                   >
                     <Trash2 className="h-4 w-4 text-red-500" />
@@ -1482,6 +1707,41 @@ function ScholarshipsTab() {
           ))}
         </div>
       )}
+
+      {/* Confirm Delete Scholarship Dialog */}
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete scholarship</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `Are you sure you want to delete "${deleteTarget.name}"?`
+                : "Are you sure you want to delete this scholarship?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteTarget(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent>
@@ -2667,11 +2927,11 @@ function ApplyToStudentsDialog({
           }
           onSuccess();
         },
-        onError: (err) => {
+        onError: (err: unknown) => {
           const errorMessage =
-            err instanceof Error
-              ? err.message
-              : "Failed to apply fee structure";
+            (err as { message?: string })?.message ??
+            (err instanceof Error ? err.message : null) ??
+            "Failed to apply fee structure";
           setError(errorMessage);
           toast.error(errorMessage);
         },
@@ -2726,7 +2986,7 @@ function ApplyToStudentsDialog({
           </div>
 
           {/* Warning message */}
-          <div className="flex items-start gap-3 rounded-lg bg-amber-50 p-4 text-sm text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+          <div className="callout-important">
             <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
             <div>
               <p className="font-medium">Important</p>
@@ -2765,7 +3025,7 @@ function ApplyToStudentsDialog({
 
             {/* Overwrite warning */}
             {overwriteExisting && (
-              <div className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400 ml-6">
+              <div className="callout-warning ml-6">
                 <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <p className="text-xs">
                   Warning: This will replace existing fee structures and may

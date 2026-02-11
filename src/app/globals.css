@@ -320,6 +320,49 @@ body {
 }
 
 /* =============================================================================
+   9. INPUT TWEAKS
+   ============================================================================= */
+
+/* Make native search input clear (×) control show pointer cursor */
+input[type="search"]::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+/* =============================================================================
+   CALLOUT UTILITIES (Important / Warning notice blocks)
+   Reusable for Apply-to-Students and other modals/pages
+   Layout: flex, gap, padding, rounded; colors match batch dialog
+   ============================================================================= */
+.callout-important {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: var(--radius);
+  font-size: 14px;
+  background-color: #fffbeb; /* amber-50 */
+  color: #92400e; /* amber-800 */
+}
+.callout-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: var(--radius);
+  font-size: 14px;
+  background-color: #fef2f2; /* red-50 */
+  color: #991b1b; /* red-800 */
+}
+.dark .callout-important {
+  background-color: rgba(120, 53, 15, 0.2); /* amber-900/20 */
+  color: #fde68a; /* amber-200 */
+}
+.dark .callout-warning {
+  background-color: rgba(127, 29, 29, 0.2); /* red-900/20 */
+  color: #fecaca; /* red-200 */
+}
+
+/* =============================================================================
    9. DARK MODE
    Activated when .dark class is on <html> element
    Uses same CSS variables with dark-appropriate values
@@ -385,9 +428,9 @@ body {
    ============================================================================= */
 
 @media print {
-  /* Reset page margins for better use of paper */
+  /* No @page margin so browser does not show date, title, URL, page number */
   @page {
-    margin: 1cm;
+    margin: 0;
     size: landscape;
   }
 
@@ -414,12 +457,13 @@ body {
     display: none !important;
   }
 
-  /* Make body full width */
+  /* Body margin replaces @page margin so content is not flush to edge */
   body {
     background: white !important;
     color: black !important;
     font-size: 12px !important;
     line-height: 1.4 !important;
+    margin: 1cm !important;
   }
 
   /* Reset main content area */
@@ -427,6 +471,16 @@ body {
     padding: 0 !important;
     margin: 0 !important;
     max-width: none !important;
+  }
+
+  /* Single-page schedule print view */
+  .schedule-print-view {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .schedule-print-view table {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   /* Schedule grid print styles */

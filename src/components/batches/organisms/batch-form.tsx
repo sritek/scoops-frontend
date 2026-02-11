@@ -58,6 +58,10 @@ interface BatchFormProps {
   isSubmitting?: boolean;
   submitLabel?: string;
   className?: string;
+  /** "create" = session selectable; "edit" = session read-only */
+  mode?: "create" | "edit";
+  /** In edit mode, display this as the current session name (e.g. batch.session?.name) */
+  currentSessionName?: string | null;
 }
 
 /**
@@ -76,6 +80,8 @@ export function BatchForm({
   isSubmitting = false,
   submitLabel = "Save",
   className,
+  mode = "create",
+  currentSessionName,
 }: BatchFormProps) {
   const {
     register,
@@ -191,24 +197,34 @@ export function BatchForm({
         </FormField>
       )}
 
-      {/* Session Select */}
+      {/* Session Select (create) or read-only (edit) */}
       <FormField
         id="sessionId"
         label="Academic Session"
         error={errors.sessionId?.message}
-        helperText="Assign batch to an academic session"
+        helperText={
+          mode === "edit"
+            ? "Academic session cannot be changed for existing batches."
+            : "Assign batch to an academic session"
+        }
       >
-        <Controller
-          name="sessionId"
-          control={control}
-          render={({ field }) => (
-            <SessionSelect
-              value={field.value || undefined}
-              onChange={(val) => field.onChange(val || "")}
-              placeholder="Select session (optional)"
-            />
-          )}
-        />
+        {mode === "edit" ? (
+          <p className="text-sm text-text-muted py-2 px-3 rounded-md border border-border-subtle bg-bg-app">
+            {currentSessionName ?? "—"}
+          </p>
+        ) : (
+          <Controller
+            name="sessionId"
+            control={control}
+            render={({ field }) => (
+              <SessionSelect
+                value={field.value || undefined}
+                onChange={(val) => field.onChange(val || "")}
+                placeholder="Select session (optional)"
+              />
+            )}
+          />
+        )}
       </FormField>
 
       {/* Class Teacher */}

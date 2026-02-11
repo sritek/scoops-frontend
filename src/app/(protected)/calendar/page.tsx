@@ -152,32 +152,32 @@ const EVENT_TYPE_CONFIG: Record<
 > = {
   holiday: {
     label: "Holiday",
-    color: "text-red-700",
-    bgColor: "bg-red-100",
+    color: "text-red-800",
+    bgColor: "bg-red-400",
     icon: PartyPopper,
   },
   exam: {
     label: "Exam",
-    color: "text-purple-700",
-    bgColor: "bg-purple-100",
+    color: "text-purple-800",
+    bgColor: "bg-purple-400",
     icon: GraduationCap,
   },
   ptm: {
     label: "PTM",
-    color: "text-blue-700",
-    bgColor: "bg-blue-100",
+    color: "text-blue-800",
+    bgColor: "bg-blue-400",
     icon: Users,
   },
   event: {
     label: "Event",
-    color: "text-green-700",
-    bgColor: "bg-green-100",
+    color: "text-green-800",
+    bgColor: "bg-green-400",
     icon: Flag,
   },
   deadline: {
     label: "Deadline",
-    color: "text-orange-700",
-    bgColor: "bg-orange-100",
+    color: "text-orange-800",
+    bgColor: "bg-orange-400",
     icon: Clock,
   },
 };
@@ -189,6 +189,27 @@ const EVENT_TYPES: AcademicEventType[] = [
   "event",
   "deadline",
 ];
+
+/** Date-only comparison helpers (ignore time/timezone for calendar day logic) */
+function toYmd(d: Date) {
+  return { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() };
+}
+
+function isSameOrBeforeDate(a: Date, b: Date) {
+  const A = toYmd(a);
+  const B = toYmd(b);
+  if (A.y !== B.y) return A.y < B.y;
+  if (A.m !== B.m) return A.m < B.m;
+  return A.d <= B.d;
+}
+
+function isSameOrAfterDate(a: Date, b: Date) {
+  const A = toYmd(a);
+  const B = toYmd(b);
+  if (A.y !== B.y) return A.y > B.y;
+  if (A.m !== B.m) return A.m > B.m;
+  return A.d >= B.d;
+}
 
 // ============================================================================
 // Form Schema
@@ -231,6 +252,10 @@ function getMonthName(month: number): string {
   });
 }
 
+function toYYYYMMDD(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 // ============================================================================
 // Event Form Dialog
 // ============================================================================
@@ -241,12 +266,16 @@ function EventFormDialog({
   event,
   batches,
   onSuccess,
+  initialStartDate,
+  initialEndDate,
 }: {
   open: boolean;
   onClose: () => void;
   event?: CalendarEvent | null;
   batches: Batch[];
   onSuccess: () => void;
+  initialStartDate?: string | null;
+  initialEndDate?: string | null;
 }) {
   const queryClient = useQueryClient();
   const isEditing = !!event;
@@ -263,8 +292,8 @@ function EventFormDialog({
       title: event?.title || "",
       type: event?.type || "event",
       description: event?.description || "",
-      startDate: event?.startDate || "",
-      endDate: event?.endDate || "",
+      startDate: event?.startDate ?? initialStartDate ?? "",
+      endDate: event?.endDate ?? initialEndDate ?? initialStartDate ?? "",
       batchId: event?.batchId || "",
       isAllDay: event?.isAllDay ?? true,
     },
@@ -461,16 +490,16 @@ function CalendarDayCell({
     <button
       onClick={() => onSelectDay(day)}
       className={cn(
-        "h-12 sm:h-16 w-full p-1 border-b border-r border-border-subtle text-left transition-colors",
-        "hover:bg-bg-app focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-inset",
-        isSelected && "bg-primary-50",
-        isToday && "font-bold"
+        "h-12 sm:h-16 w-full p-1 border-b border-r border-border-subtle text-left",
+        "hover:bg-bg-app focus:outline-none focus-visible:outline-none focus-visible:ring-0",
+        isSelected && "border-primary-500"
       )}
     >
       <span
         className={cn(
-          "inline-flex items-center justify-center w-6 h-6 text-sm rounded-full",
-          isToday && "bg-primary-600 text-white"
+          "inline-flex items-center justify-center w-6 h-6 text-sm rounded-full border border-transparent transition-colors",
+          isToday && "bg-primary-50 text-primary-700",
+          isSelected && "border-primary-500 font-semibold"
         )}
       >
         {day}
@@ -582,18 +611,22 @@ function CalendarGridView({
   year,
   selectedDay,
   onSelectDay,
+  todayYear,
+  todayMonth,
+  todayDay,
 }: {
   events: CalendarEvent[];
   month: number;
   year: number;
   selectedDay: number | null;
   onSelectDay: (day: number) => void;
+  todayYear: number;
+  todayMonth: number;
+  todayDay: number;
 }) {
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
-  const today = new Date();
-  const isCurrentMonth =
-    today.getMonth() + 1 === month && today.getFullYear() === year;
+  const isCurrentMonth = month === todayMonth && year === todayYear;
 
   const eventsByDay = useMemo(() => {
     const map: Record<number, CalendarEvent[]> = {};
@@ -603,7 +636,7 @@ function CalendarGridView({
 
       for (
         let d = new Date(startDate);
-        d <= endDate;
+        isSameOrBeforeDate(d, endDate);
         d.setDate(d.getDate() + 1)
       ) {
         if (d.getMonth() + 1 === month && d.getFullYear() === year) {
@@ -645,7 +678,7 @@ function CalendarGridView({
             <CalendarDayCell
               key={day}
               day={day}
-              isToday={isCurrentMonth && today.getDate() === day}
+              isToday={isCurrentMonth && todayDay === day}
               events={eventsByDay[day] || []}
               onSelectDay={onSelectDay}
               isSelected={selectedDay === day}
@@ -788,14 +821,20 @@ function SelectedDayEvents({
 export default function StaffCalendarPage() {
   const queryClient = useQueryClient();
   const today = new Date();
-  const [month, setMonth] = useState(today.getMonth() + 1);
-  const [year, setYear] = useState(today.getFullYear());
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth() + 1;
+  const todayDay = today.getDate();
+  const [month, setMonth] = useState(todayMonth);
+  const [year, setYear] = useState(todayYear);
   const [batchFilter, setBatchFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(todayDay);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [initialDateForNewEvent, setInitialDateForNewEvent] = useState<
+    string | null
+  >(null);
   const [deleteConfirmEvent, setDeleteConfirmEvent] =
     useState<CalendarEvent | null>(null);
 
@@ -851,13 +890,17 @@ export default function StaffCalendarPage() {
   };
 
   const goToToday = () => {
-    setSelectedDay(null);
     setMonth(today.getMonth() + 1);
     setYear(today.getFullYear());
+    setSelectedDay(today.getDate());
   };
 
-  const handleAddEvent = () => {
+  const handleAddEvent = (initialStartDate?: string) => {
     setEditingEvent(null);
+    setInitialDateForNewEvent(
+      initialStartDate ??
+        toYYYYMMDD(today.getFullYear(), today.getMonth() + 1, today.getDate())
+    );
     setDialogOpen(true);
   };
 
@@ -882,7 +925,10 @@ export default function StaffCalendarPage() {
       const startDate = new Date(event.startDate);
       const endDate = event.endDate ? new Date(event.endDate) : startDate;
       const checkDate = new Date(year, month - 1, selectedDay);
-      return checkDate >= startDate && checkDate <= endDate;
+      return (
+        isSameOrAfterDate(checkDate, startDate) &&
+        isSameOrBeforeDate(checkDate, endDate)
+      );
     });
   }, [data?.events, selectedDay, year, month]);
 
@@ -903,7 +949,7 @@ export default function StaffCalendarPage() {
           <Button variant="secondary" onClick={goToToday}>
             Today
           </Button>
-          <Button onClick={handleAddEvent}>
+          <Button onClick={() => handleAddEvent()}>
             <Plus className="h-4 w-4 mr-2" />
             Add Event
           </Button>
@@ -1002,6 +1048,9 @@ export default function StaffCalendarPage() {
                 year={year}
                 selectedDay={selectedDay}
                 onSelectDay={setSelectedDay}
+                todayYear={todayYear}
+                todayMonth={todayMonth}
+                todayDay={todayDay}
               />
               {selectedDay !== null && (
                 <SelectedDayEvents
@@ -1012,7 +1061,9 @@ export default function StaffCalendarPage() {
                   onClose={() => setSelectedDay(null)}
                   onEdit={handleEditEvent}
                   onDelete={handleDeleteEvent}
-                  onAddEvent={handleAddEvent}
+                  onAddEvent={() =>
+                    handleAddEvent(toYYYYMMDD(year, month, selectedDay!))
+                  }
                 />
               )}
             </>
@@ -1028,14 +1079,18 @@ export default function StaffCalendarPage() {
 
       {/* Event Form Dialog */}
       <EventFormDialog
+        key={editingEvent?.id ?? initialDateForNewEvent ?? "new"}
         open={dialogOpen}
         onClose={() => {
           setDialogOpen(false);
           setEditingEvent(null);
+          setInitialDateForNewEvent(null);
         }}
         event={editingEvent}
         batches={batches}
         onSuccess={() => {}}
+        initialStartDate={initialDateForNewEvent}
+        initialEndDate={initialDateForNewEvent}
       />
 
       {/* Delete Confirmation Dialog */}

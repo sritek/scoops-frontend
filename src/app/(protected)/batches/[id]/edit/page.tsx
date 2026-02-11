@@ -58,12 +58,12 @@ export default function EditBatchPage() {
   }
 
   const handleSubmit = (data: BatchFormData) => {
+    // Session cannot be changed via this form; omit sessionId so backend keeps existing value.
     const payload = {
       name: data.name,
       academicLevel: data.academicLevel,
       stream: data.stream,
       classTeacherId: data.classTeacherId || null,
-      sessionId: data.sessionId || null,
       isActive: data.isActive,
     };
 
@@ -87,11 +87,9 @@ export default function EditBatchPage() {
     <div className="space-y-6 max-w-2xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`/batches/${batchId}`}>
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back
-          </Link>
+        <Button variant="ghost" size="sm" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back
         </Button>
       </div>
 
@@ -109,6 +107,8 @@ export default function EditBatchPage() {
         </CardHeader>
         <CardContent>
           <BatchForm
+            mode="edit"
+            currentSessionName={batch.session?.name ?? null}
             defaultValues={{
               name: batch.name,
               academicLevel: batch.academicLevel,

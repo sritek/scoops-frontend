@@ -35,7 +35,7 @@ export const attendanceKeys = {
 /**
  * Fetch attendance for a batch on a specific date with pagination
  */
-async function fetchAttendance(
+export async function fetchAttendance(
   batchId: string,
   date: string,
   params: PaginationParams = {}
@@ -166,6 +166,7 @@ export function useMarkAttendance() {
         queryKey: ["attendance", data.batchId, data.date],
       });
       queryClient.invalidateQueries({ queryKey: attendanceKeys.all });
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.summary() });
 
       // Also invalidate dashboard to update summary
       queryClient.invalidateQueries({ queryKey: dashboardKeys.all });

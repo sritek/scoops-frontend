@@ -294,7 +294,7 @@ function LeaveCard({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="pt-4">
             <Button
               variant="secondary"
               onClick={() => setShowReviewDialog(false)}

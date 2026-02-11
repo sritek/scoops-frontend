@@ -200,6 +200,7 @@ function FeeStructureCard({
     totalAmount: number;
     isActive: boolean;
     createdAt: string;
+    updatedAt: string;
     lineItems: Array<{
       id: string;
       feeComponentId: string;
@@ -270,7 +271,8 @@ function FeeStructureCard({
           </div>
 
           <p className="text-xs text-text-muted">
-            Created: {formatDate(structure.createdAt)}
+            Last updated at:{" "}
+            {formatDate(structure.updatedAt ?? structure.createdAt)}
           </p>
         </div>
       </CardContent>
@@ -532,8 +534,8 @@ function ApplyToStudentsDialog({
           );
           onOpenChange(false);
         },
-        onError: () => {
-          toast.error("Failed to apply fee structure");
+        onError: (error: { message?: string }) => {
+          toast.error(error?.message ?? "Failed to apply fee structure");
         },
       },
     );
@@ -550,9 +552,9 @@ function ApplyToStudentsDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+          <div className="callout-important">
             <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
-            <div className="text-sm">
+            <div>
               <p className="font-medium">Important</p>
               <p className="mt-1">
                 This will create fee structures for all active students in the
@@ -576,9 +578,9 @@ function ApplyToStudentsDialog({
           </div>
 
           {overwriteExisting && (
-            <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-200">
+            <div className="callout-warning">
               <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
-              <div className="text-sm">
+              <div>
                 <p className="font-medium">Warning</p>
                 <p className="mt-1">
                   This will replace any custom fee structures students may have,
